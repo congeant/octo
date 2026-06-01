@@ -15,8 +15,8 @@ program
 
 program
   .command('init')
-  .description('Escaneia o monorepo e gera octo.yaml')
-  .option('--standalone', 'Gera manifesto apenas para o projeto corrente')
+  .description('Scan the monorepo and generate octo.yaml')
+  .option('--standalone', 'Generate manifest for the current project only')
   .action(async (opts) => {
     const { initCommand } = await import('./init.command.js');
     await initCommand(opts);
@@ -24,7 +24,7 @@ program
 
 program
   .command('graph')
-  .description('Exibe o grafo de dependências')
+  .description('Display the dependency graph')
   .action(async () => {
     const { graphCommand } = await import('./graph.command.js');
     await graphCommand();
@@ -32,8 +32,8 @@ program
 
 program
   .command('build [service]')
-  .description('Builda serviços do monorepo')
-  .option('--affected', 'Builda apenas serviços afetados')
+  .description('Build monorepo services')
+  .option('--affected', 'Build only affected services')
   .action(async (service, opts) => {
     const { buildCommand } = await import('./build.command.js');
     await buildCommand(service, opts);
@@ -54,7 +54,7 @@ program
 
 program
   .command('up [service]')
-  .description('Sobe infraestrutura local')
+  .description('Start local infrastructure')
   .action(async (service) => {
     const { upCommand } = await import('./up.command.js');
     await upCommand(service);
@@ -62,8 +62,8 @@ program
 
 program
   .command('down')
-  .description('Para infraestrutura local')
-  .option('--volumes', 'Remove volumes também')
+  .description('Stop local infrastructure')
+  .option('--volumes', 'Remove volumes as well')
   .action(async (opts) => {
     const { downCommand } = await import('./down.command.js');
     await downCommand(opts);
@@ -71,7 +71,7 @@ program
 
 program
   .command('status')
-  .description('Exibe status dos containers')
+  .description('Show container status')
   .action(async () => {
     const { statusCommand } = await import('./status.command.js');
     await statusCommand();
@@ -79,8 +79,8 @@ program
 
 program
   .command('add <repo-url>')
-  .description('Clona um repositório e registra no octo.yaml')
-  .option('--name <name>', 'Nome customizado para o diretório clonado')
+  .description('Clone a repository and register it in octo.yaml')
+  .option('--name <name>', 'Custom name for the cloned directory')
   .action(async (repoUrl, opts) => {
     const { addCommand } = await import('./add.command.js');
     await addCommand(repoUrl, opts);

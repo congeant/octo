@@ -22,7 +22,7 @@ export async function addCommand(repoUrl: string, opts: AddCommandOptions): Prom
   const targetDir = resolve(rootDir, dirName);
 
   if (existsSync(targetDir)) {
-    throw new OctoError(`Diretório já existe: ${dirName}. Use --name para especificar outro nome.`);
+    throw new OctoError(`Directory already exists: ${dirName}. Use --name to specify another name.`);
   }
 
   await cloneRepository(repoUrl, targetDir);
@@ -36,10 +36,10 @@ export async function addCommand(repoUrl: string, opts: AddCommandOptions): Prom
   const added = addEntry(manifest, projectName, dirName, type);
 
   if (!added) {
-    logger.info(`Projeto "${projectName}" já está registrado no octo.yaml.`);
+    logger.info(`Project "${projectName}" is already registered in octo.yaml.`);
     return;
   }
 
   saveManifest(manifestPath, manifest, originalContent);
-  logger.info(`Projeto "${projectName}" adicionado como ${type} no octo.yaml.`);
+  logger.info(`Project "${projectName}" added as ${type} in octo.yaml.`);
 }

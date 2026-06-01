@@ -5,7 +5,7 @@ import { buildGraphFromManifest } from '../graph/build-graph.js';
 import { OctoError } from '../shared/errors.js';
 
 /**
- * `octo graph` — exibe grafo de dependências no stdout em formato de lista de adjacência indentada.
+ * `octo graph` — displays the dependency graph on stdout as an indented adjacency list.
  */
 export async function graphCommand(): Promise<void> {
   const cwd = process.cwd();
@@ -15,7 +15,7 @@ export async function graphCommand(): Promise<void> {
   try {
     content = readFileSync(manifestPath, 'utf-8');
   } catch {
-    throw new OctoError(`Não foi possível ler ${manifestPath}. Execute "octo init" primeiro.`);
+    throw new OctoError(`Could not read ${manifestPath}. Run "octo init" first.`);
   }
 
   const result = parseManifest(content, manifestPath);

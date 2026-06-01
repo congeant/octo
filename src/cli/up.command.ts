@@ -14,7 +14,7 @@ export async function upCommand(service?: string): Promise<void> {
   try {
     content = readFileSync(manifestPath, 'utf-8');
   } catch {
-    throw new OctoError('octo.yaml não encontrado. Execute `octo init` primeiro.');
+    throw new OctoError('octo.yaml not found. Run `octo init` first.');
   }
 
   const parsed = parseManifest(content, manifestPath);
@@ -28,7 +28,7 @@ export async function upCommand(service?: string): Promise<void> {
     const node = graph.getNode(service);
     if (!node) {
       const available = graph.getNodeNames().join(', ');
-      throw new OctoError(`Serviço "${service}" não encontrado. Disponíveis: ${available}`);
+      throw new OctoError(`Service "${service}" not found. Available: ${available}`);
     }
     // Include service + its dependencies
     const deps = graph.getDependencies(service);

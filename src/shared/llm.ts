@@ -15,7 +15,7 @@ async function getGenerator(): Promise<TextGenerationPipeline | null> {
   if (generator) return generator;
 
   try {
-    logger.info('Carregando modelo de IA local (primeira execução pode demorar)...');
+    logger.info('Loading local AI model (first run may take a while)...');
     generator = await pipeline('text-generation', MODEL_ID, {
       dtype: 'q4',
     }) as TextGenerationPipeline;
@@ -23,7 +23,7 @@ async function getGenerator(): Promise<TextGenerationPipeline | null> {
   } catch (err) {
     initFailed = true;
     const msg = err instanceof Error ? err.message : String(err);
-    logger.info(`Modelo de IA indisponível: ${msg}. Usando fallback determinístico.`);
+    logger.info(`Local AI model unavailable: ${msg}. Using deterministic fallback.`);
     return null;
   }
 }

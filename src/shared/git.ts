@@ -15,7 +15,7 @@ export function extractRepoName(url: string): string {
   const parts = cleaned.split(/[/:]/);
   const name = parts[parts.length - 1];
   if (!name) {
-    throw new OctoError(`Não foi possível extrair o nome do repositório de: ${url}`);
+    throw new OctoError(`Could not extract repository name from: ${url}`);
   }
   return name;
 }
@@ -24,7 +24,7 @@ export function extractRepoName(url: string): string {
  * Clones a git repository into the target directory.
  */
 export async function cloneRepository(url: string, targetDir: string): Promise<void> {
-  logger.info(`Clonando ${url}...`);
+  logger.info(`Cloning ${url}...`);
 
   const result = await run('git', ['clone', url, targetDir], {
     timeout: 120_000,
@@ -32,8 +32,8 @@ export async function cloneRepository(url: string, targetDir: string): Promise<v
   });
 
   if (result.exitCode !== 0) {
-    throw new OctoError(`Falha ao clonar repositório.`);
+    throw new OctoError('Failed to clone repository.');
   }
 
-  logger.info(`Repositório clonado em ./${basename(targetDir)}`);
+  logger.info(`Repository cloned to ./${basename(targetDir)}`);
 }

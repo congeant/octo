@@ -23,15 +23,15 @@ export class VersionPropagator {
     await this.propagateRecursive(packageName, newVersion, entries, visited);
 
     if (entries.length === 0) {
-      logger.info(`Nenhum projeto consome ${packageName}. Propagação encerrada.`);
+      logger.info(`No consumers found for ${packageName}. Propagation skipped.`);
       return { entries };
     }
 
     // Display summary
-    logger.info('--- Resumo da Propagação ---');
+    logger.info('--- Propagation Summary ---');
     for (const entry of entries) {
       if (entry.skipped) {
-        logger.warn(`  ${entry.project}: PULADO — ${entry.reason}`);
+        logger.warn(`  ${entry.project}: SKIPPED — ${entry.reason}`);
       } else {
         logger.info(`  ${entry.project}: ${entry.previousVersion} → ${entry.newVersion}`);
       }

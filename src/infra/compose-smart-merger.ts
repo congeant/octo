@@ -48,24 +48,24 @@ export function createComposeSmartMerger(): ComposeSmartMerger {
       // Try LLM-based merge
       if (await isAvailable()) {
         try {
-          logger.info('Usando IA local para merge inteligente de compose files...');
+          logger.info('Using local AI for smart compose merge...');
           const prompt = buildPrompt(composes);
           const parsed = await generateJSON(prompt);
 
           if (parsed) {
             const validated = MergedComposeSchema.safeParse(parsed);
             if (validated.success) {
-              logger.info('Merge inteligente concluído com sucesso.');
+              logger.info('Smart merge completed successfully.');
               return validated.data;
             }
-            logger.warn('Output da IA falhou na validação. Usando fallback determinístico.');
+            logger.warn('AI output failed validation. Using deterministic fallback.');
           }
         } catch (err) {
           const msg = err instanceof Error ? err.message : String(err);
-          logger.warn(`Erro ao usar IA: ${msg}. Usando fallback determinístico.`);
+          logger.warn(`AI error: ${msg}. Using deterministic fallback.`);
         }
       } else {
-        logger.info('IA local indisponível. Usando merge determinístico.');
+        logger.info('Local AI unavailable. Using deterministic merge.');
       }
 
       // Fallback: deterministic merge

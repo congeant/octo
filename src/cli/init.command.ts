@@ -88,7 +88,7 @@ export async function initCommand(opts: { standalone?: boolean }): Promise<void>
   }
 
   if (results.length === 0) {
-    logger.info('Nenhum pacote com package.json encontrado. Criando octo.yaml vazio.');
+    logger.info('No package.json found. Creating empty octo.yaml.');
   }
 
   const services = results.filter((p) => p.hasDockerfile).map((p) => p.name);
@@ -103,5 +103,5 @@ export async function initCommand(opts: { standalone?: boolean }): Promise<void>
   const outputPath = join(rootDir, 'octo.yaml');
   await writeFile(outputPath, yaml, 'utf-8');
 
-  logger.info(`octo.yaml gerado com ${services.length} serviço(s)${packages.length > 0 ? ` e ${packages.length} pacote(s)` : ''}.`);
+  logger.info(`octo.yaml generated with ${services.length} service(s)${packages.length > 0 ? ` and ${packages.length} package(s)` : ''}.`);
 }

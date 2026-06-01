@@ -21,7 +21,7 @@ export async function triggerShutdown(signal: string): Promise<void> {
   shuttingDown = true;
 
   const { logger } = await import('./logger.js');
-  logger.warn(`Shutdown solicitado (${signal}). Cancelando operações em andamento...`);
+  logger.warn(`Shutdown requested (${signal}). Cancelling ongoing operations...`);
 
   for (const cb of callbacks) {
     try {
@@ -31,6 +31,6 @@ export async function triggerShutdown(signal: string): Promise<void> {
     }
   }
 
-  logger.info('Shutdown completo.');
+  logger.info('Shutdown complete.');
   process.exit(130);
 }

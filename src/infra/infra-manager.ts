@@ -58,7 +58,7 @@ async function waitForHealthcheck(containerName: string): Promise<boolean> {
 async function showContainerLogs(containerName: string): Promise<void> {
   const result = await run('docker', ['logs', '--tail', '20', containerName]);
   const output = result.stdout || result.stderr;
-  if (output) logger.error(`Últimas 20 linhas de log (${containerName}):\n${output}`);
+  if (output) logger.error(`Last 20 lines of log (${containerName}):\n${output}`);
 }
 
 export function createInfraManager(servicePaths: string[]): InfraManager {
@@ -77,11 +77,11 @@ export function createInfraManager(servicePaths: string[]): InfraManager {
         return { success: true, message: 'Nenhum docker-compose.yml encontrado.' };
       }
 
-      logger.info(`Descobertos ${discovered.length} compose file(s). Merging...`);
+      logger.info(`Discovered ${discovered.length} compose file(s). Merging...`);
       const merged = await smartMerger.deduplicate(discovered);
       composePath = await writeTempCompose(merged);
 
-      logger.info('Subindo containers...');
+      logger.info('Starting containers...');
       const result = await run('docker', ['compose', '-f', composePath, 'up', '-d']);
       if (result.exitCode !== 0) {
         return { success: false, message: `docker compose up falhou: ${result.stderr}` };
@@ -92,7 +92,7 @@ export function createInfraManager(servicePaths: string[]): InfraManager {
       for (const svc of serviceNames) {
         const healthy = await waitForHealthcheck(svc);
         if (!healthy) {
-          logger.error(`Healthcheck timeout para container "${svc}".`);
+          logger.error(`Healthcheck timeout for container "${svc}".`);
           await showContainerLogs(svc);
           // Stop dependents but don't tear down everything
           return { success: false, message: `Healthcheck timeout: ${svc}` };

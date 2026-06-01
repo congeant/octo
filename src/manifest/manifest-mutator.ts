@@ -19,7 +19,7 @@ export function loadOrCreateManifest(manifestPath: string): LoadedManifest {
     if (parsed.ok) {
       return { manifest: parsed.value, originalContent: content };
     }
-    throw new OctoError(`octo.yaml inválido: ${parsed.error.message}`);
+    throw new OctoError(`Invalid octo.yaml: ${parsed.error.message}`);
   }
   return { manifest: { services: [] } };
 }

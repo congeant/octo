@@ -48,13 +48,13 @@ export function createBuildOrchestrator(): BuildOrchestrator {
       const inProgress = lastProgress.filter((p) => p.status === 'building');
       const pending = lastProgress.filter((p) => p.status === 'pending');
       logger.info(
-        `Estado parcial: ${completed.length} concluídos, ${inProgress.length} em andamento, ${pending.length} pendentes`,
+        `Partial state: ${completed.length} completed, ${inProgress.length} in progress, ${pending.length} pending`,
       );
       if (completed.length > 0) {
-        logger.info(`  Concluídos: ${completed.map((p) => p.service).join(', ')}`);
+        logger.info(`  Completed: ${completed.map((p) => p.service).join(', ')}`);
       }
       if (inProgress.length > 0) {
-        logger.info(`  Em andamento: ${inProgress.map((p) => p.service).join(', ')}`);
+        logger.info(`  In progress: ${inProgress.map((p) => p.service).join(', ')}`);
       }
     }
   });

@@ -14,7 +14,7 @@ export async function statusCommand(): Promise<void> {
   try {
     content = readFileSync(manifestPath, 'utf-8');
   } catch {
-    throw new OctoError('octo.yaml não encontrado. Execute `octo init` primeiro.');
+    throw new OctoError('octo.yaml not found. Run `octo init` first.');
   }
 
   const parsed = parseManifest(content, manifestPath);

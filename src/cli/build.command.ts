@@ -24,7 +24,7 @@ export async function buildCommand(service?: string, opts?: { affected?: boolean
   try {
     content = readFileSync(manifestPath, 'utf-8');
   } catch {
-    throw new OctoError('octo.yaml não encontrado. Execute `octo init` primeiro.');
+    throw new OctoError('octo.yaml not found. Run `octo init` first.');
   }
 
   const parsed = parseManifest(content, manifestPath);
@@ -48,11 +48,11 @@ export async function buildCommand(service?: string, opts?: { affected?: boolean
     const affected = await detector.detect(graph, rootDir);
 
     if (affected.length === 0) {
-      logger.info('Nenhum serviço afetado detectado.');
+      logger.info('No affected services detected.');
       return;
     }
 
-    logger.info(`Serviços afetados: ${affected.join(', ')}`);
+    logger.info(`Affected services: ${affected.join(', ')}`);
     result = await orchestrator.buildTargets(affected, graph, registry, buildOptions);
 
     if (result.success) {
@@ -67,7 +67,7 @@ export async function buildCommand(service?: string, opts?: { affected?: boolean
 
     if (!allNames.includes(service)) {
       throw new OctoError(
-        `Serviço "${service}" não encontrado no manifesto.\nDisponíveis: ${allNames.join(', ')}`,
+        `Service "${service}" not found in manifest.\nAvailable: ${allNames.join(', ')}`,
       );
     }
 
