@@ -1,18 +1,18 @@
 import { readFile, writeFile } from 'node:fs/promises';
 import { join } from 'node:path';
+import { Ollama } from 'ollama';
 import { run } from '../shared/process-runner.js';
+import { logger } from '../shared/logger.js';
 
 const HEADER = '# Changelog\n';
 
-/**
- * Generates a Keep a Changelog entry and prepends it to CHANGELOG.md.
- * Returns the generated entry text.
- */
 export class ChangelogGenerator {
+  private ollama = new Ollama();
+
   async generate(packageDir: string, newVersion: string): Promise<string> {
     const changelogPath = join(packageDir, 'CHANGELOG.md');
     const commits = await this.getCommitsSinceLastTag(packageDir);
-    const entry = this.buildEntry(newVersion, commits);
+    const entry = await this.buildEntry(newVersion, commits);
 
     const existing = await this.readChangelog(changelogPath);
     const updated = this.prependEntry(existing, entry);
@@ -22,7 +22,6 @@ export class ChangelogGenerator {
   }
 
   private async getCommitsSinceLastTag(cwd: string): Promise<string[]> {
-    // Try to get the last tag for this directory
     const tagResult = await run('git', ['describe', '--tags', '--abbrev=0'], { cwd });
     const lastTag = tagResult.exitCode === 0 ? tagResult.stdout.trim() : '';
 
@@ -31,9 +30,7 @@ export class ChangelogGenerator {
       : ['log', '--oneline', '--', '.'];
 
     const logResult = await run('git', logArgs, { cwd });
-    if (logResult.exitCode !== 0 || !logResult.stdout.trim()) {
-      return [];
-    }
+    if (logResult.exitCode !== 0 || !logResult.stdout.trim()) return [];
 
     return logResult.stdout
       .trim()
@@ -41,20 +38,52 @@ export class ChangelogGenerator {
       .map((line) => line.replace(/^[a-f0-9]+\s+/, ''));
   }
 
-  private buildEntry(version: string, commits: string[]): string {
+  private async buildEntry(version: string, commits: string[]): Promise<string> {
     const date = new Date().toISOString().slice(0, 10);
-    const lines = [`## [${version}] - ${date}`, '', '### Changed', ''];
 
-    if (commits.length > 0) {
-      for (const msg of commits) {
-        lines.push(`- ${msg}`);
-      }
-    } else {
-      lines.push('- Version bump');
+    if (commits.length === 0) {
+      return [`## [${version}] - ${date}`, '', '### Changed', '', '- Version bump', ''].join('\n');
     }
 
+    // Try LLM-generated changelog
+    const llmEntry = await this.generateWithLLM(version, date, commits);
+    if (llmEntry) return llmEntry;
+
+    // Fallback: plain commit list
+    const lines = [`## [${version}] - ${date}`, '', '### Changed', ''];
+    for (const msg of commits) {
+      lines.push(`- ${msg}`);
+    }
     lines.push('');
     return lines.join('\n');
+  }
+
+  private async generateWithLLM(version: string, date: string, commits: string[]): Promise<string | null> {
+    try {
+      const models = await this.ollama.list();
+      const hasModel = models.models.some((m) => m.name.startsWith('phi4'));
+      if (!hasModel) return null;
+
+      const commitList = commits.map((c) => `- ${c}`).join('\n');
+      const prompt = `You are a changelog writer. Given these git commits, generate a concise, well-organized changelog entry in Keep a Changelog format.
+
+Group changes into appropriate sections: Added, Changed, Fixed, Removed (only include sections that apply).
+Rewrite commit messages into clear, user-facing descriptions. Merge related commits into single entries when appropriate.
+
+Commits:
+${commitList}
+
+Output ONLY the markdown sections (### Added, ### Changed, etc.) with bullet points. No header, no version line.`;
+
+      const response = await this.ollama.generate({ model: 'phi4', prompt, stream: false });
+      const sections = response.response.trim();
+
+      if (!sections || sections.length < 10) return null;
+
+      return [`## [${version}] - ${date}`, '', sections, ''].join('\n');
+    } catch {
+      return null;
+    }
   }
 
   private async readChangelog(path: string): Promise<string> {
@@ -66,11 +95,8 @@ export class ChangelogGenerator {
   }
 
   private prependEntry(existing: string, entry: string): string {
-    if (!existing) {
-      return HEADER + '\n' + entry;
-    }
+    if (!existing) return HEADER + '\n' + entry;
 
-    // Insert after the "# Changelog" header line
     const headerIndex = existing.indexOf('# Changelog');
     if (headerIndex !== -1) {
       const afterHeader = existing.indexOf('\n', headerIndex);
@@ -81,7 +107,6 @@ export class ChangelogGenerator {
       }
     }
 
-    // No header found — prepend at top
     return HEADER + '\n' + entry + existing;
   }
 }

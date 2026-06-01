@@ -41,9 +41,12 @@ program
 
 program
   .command('bump <package>')
-  .description('Incrementa versão de um pacote')
-  .argument('[type]', 'Tipo de bump: patch | minor | major', 'patch')
-  .option('--install', 'Executa pnpm install nos projetos atualizados')
+  .description('Bump package version with semver')
+  .argument('[type]', 'Bump type: patch | minor | major', 'patch')
+  .option('--install', 'Run pnpm install in updated dependents')
+  .option('--push', 'Push commit and tags to remote after bump')
+  .option('--tag', 'Create a git tag for the new version')
+  .option('--auto', 'Non-interactive mode: skip confirmations, tag and push automatically')
   .action(async (pkg, type, opts) => {
     const { bumpCommand } = await import('./bump.command.js');
     await bumpCommand(pkg, type, opts);

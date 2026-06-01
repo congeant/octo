@@ -5,8 +5,17 @@ import semver from 'semver';
 import { run } from '../shared/process-runner.js';
 import { logger } from '../shared/logger.js';
 import { OctoError } from '../shared/errors.js';
+import type { OctoManifest } from '../manifest/manifest-schema.js';
+import { renderTemplate, getCommitTemplate, getTagTemplate } from './template-renderer.js';
 
 export type BumpType = 'patch' | 'minor' | 'major';
+
+export interface BumpOptions {
+  push?: boolean;
+  tag?: boolean;
+  auto?: boolean;
+  manifest?: OctoManifest;
+}
 
 export interface BumpResult {
   package: string;
@@ -23,7 +32,6 @@ export interface PropagationEntry {
   reason?: string;
 }
 
-/** Prompts user for y/n confirmation via readline */
 function confirm(message: string): Promise<boolean> {
   const rl = createInterface({ input: process.stdin, output: process.stdout });
   return new Promise((resolve) => {
@@ -35,77 +43,90 @@ function confirm(message: string): Promise<boolean> {
 }
 
 export class VersionBumper {
-  /**
-   * Bump a package version following semver 2.0.0.
-   * @param packageDir - Absolute path to the package directory
-   * @param packageName - The package name (e.g. @spectre/events)
-   * @param type - Bump type, defaults to 'patch'
-   */
-  async bump(packageDir: string, packageName: string, type: BumpType = 'patch'): Promise<BumpResult> {
+  async bump(packageDir: string, packageName: string, type: BumpType = 'patch', options: BumpOptions = {}): Promise<BumpResult> {
     const pkgJsonPath = join(packageDir, 'package.json');
-
-    // 1. Read original package.json (byte-for-byte backup for rollback)
     const originalContent = await readFile(pkgJsonPath, 'utf-8');
     const pkg = JSON.parse(originalContent);
     const previousVersion: string = pkg.version;
 
     if (!semver.valid(previousVersion)) {
-      throw new OctoError(`Versão inválida no package.json: ${previousVersion}`);
+      throw new OctoError(`Invalid version in package.json: ${previousVersion}`);
     }
 
-    // 2. Calculate new version
     const newVersion = semver.inc(previousVersion, type);
     if (!newVersion) {
-      throw new OctoError(`Falha ao incrementar versão ${previousVersion} com tipo ${type}`);
+      throw new OctoError(`Failed to increment version ${previousVersion} with type ${type}`);
     }
 
-    // 3. Check for uncommitted changes
-    const status = await run('git', ['status', '--porcelain'], { cwd: packageDir });
-    if (status.stdout.trim().length > 0) {
-      logger.warn(`Alterações não commitadas detectadas em ${packageName}:`);
-      logger.info(status.stdout.trim());
-      const accepted = await confirm('Continuar com o bump? (y/n) ');
-      if (!accepted) {
-        throw new OctoError('Bump abortado pelo usuário');
+    // Check uncommitted changes (skip in auto mode)
+    if (!options.auto) {
+      const status = await run('git', ['status', '--porcelain'], { cwd: packageDir });
+      if (status.stdout.trim().length > 0) {
+        logger.warn(`Uncommitted changes detected in ${packageName}:`);
+        logger.info(status.stdout.trim());
+        const accepted = await confirm('Continue with bump? (y/n) ');
+        if (!accepted) {
+          throw new OctoError('Bump aborted by user');
+        }
       }
     }
 
-    // 4. Write new version to package.json
+    // Write new version
     pkg.version = newVersion;
-    const newContent = JSON.stringify(pkg, null, 2) + '\n';
-    await writeFile(pkgJsonPath, newContent, 'utf-8');
-
+    await writeFile(pkgJsonPath, JSON.stringify(pkg, null, 2) + '\n', 'utf-8');
     logger.info(`${packageName}: ${previousVersion} → ${newVersion}`);
 
-    // 5. Run build
+    // Run build
     const buildResult = await run('pnpm', ['run', 'build'], { cwd: packageDir });
-
     if (buildResult.exitCode !== 0) {
-      // Rollback: restore original package.json byte-for-byte
       await writeFile(pkgJsonPath, originalContent, 'utf-8');
-      logger.error(`Build falhou para ${packageName}. Rollback aplicado.`);
+      logger.error(`Build failed for ${packageName}. Rollback applied.`);
       logger.error(buildResult.stderr || buildResult.stdout);
-      throw new OctoError(`Build falhou após bump de ${packageName}`);
+      throw new OctoError(`Build failed after bump of ${packageName}`);
     }
 
-    // 6. Build passed — commit
-    await run('git', ['add', pkgJsonPath], { cwd: packageDir });
-    await run('git', ['commit', '-m', `chore(${packageName}): bump version to ${newVersion}`], { cwd: packageDir });
-
-    logger.info(`Commit criado: chore(${packageName}): bump version to ${newVersion}`);
-
-    return {
-      package: packageName,
+    // Template context
+    const ctx = {
+      name: packageName,
+      version: newVersion,
       previousVersion,
-      newVersion,
-      propagated: [],
+      type,
+      date: new Date().toISOString().slice(0, 10),
     };
+
+    // Commit with template
+    const commitTemplate = options.manifest ? getCommitTemplate(options.manifest) : 'chore({{name}}): bump version to {{version}}';
+    const commitMsg = renderTemplate(commitTemplate, ctx);
+
+    await run('git', ['add', pkgJsonPath], { cwd: packageDir });
+    await run('git', ['commit', '-m', commitMsg], { cwd: packageDir });
+    logger.info(`Commit: ${commitMsg}`);
+
+    // Tag (if --tag or --auto)
+    if (options.tag || options.auto) {
+      const tagTemplate = options.manifest ? getTagTemplate(options.manifest) : '{{name}}@{{version}}';
+      const tagName = renderTemplate(tagTemplate, ctx);
+
+      await run('git', ['tag', '-a', tagName, '-m', `Release ${tagName}`], { cwd: packageDir });
+      logger.info(`Tag created: ${tagName}`);
+    }
+
+    // Push (if --push or --auto)
+    if (options.push || options.auto) {
+      const pushResult = await run('git', ['push', '--follow-tags'], { cwd: packageDir });
+      if (pushResult.exitCode !== 0) {
+        logger.error(`Push failed: ${pushResult.stderr}`);
+      } else {
+        logger.info('Pushed to remote with tags.');
+      }
+    }
+
+    return { package: packageName, previousVersion, newVersion, propagated: [] };
   }
 
-  /** Rollback package.json to a given content (byte-for-byte) */
   async rollback(packageDir: string, originalContent: string): Promise<void> {
     const pkgJsonPath = join(packageDir, 'package.json');
     await writeFile(pkgJsonPath, originalContent, 'utf-8');
-    logger.info('Rollback do package.json concluído.');
+    logger.info('Rollback of package.json complete.');
   }
 }
