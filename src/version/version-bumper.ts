@@ -1,10 +1,10 @@
-import { createInterface } from 'node:readline';
 import { readFile, writeFile } from 'node:fs/promises';
 import { join } from 'node:path';
 import semver from 'semver';
 import { run } from '../shared/process-runner.js';
 import { logger } from '../shared/logger.js';
 import { OctoError } from '../shared/errors.js';
+import { confirm } from '../shared/prompt.js';
 
 export type BumpType = 'patch' | 'minor' | 'major';
 
@@ -27,16 +27,6 @@ export interface PropagationEntry {
   newVersion: string;
   skipped?: boolean;
   reason?: string;
-}
-
-function confirm(message: string): Promise<boolean> {
-  const rl = createInterface({ input: process.stdin, output: process.stdout });
-  return new Promise((resolve) => {
-    rl.question(message, (answer) => {
-      rl.close();
-      resolve(answer.trim().toLowerCase() === 'y');
-    });
-  });
 }
 
 export class VersionBumper {
