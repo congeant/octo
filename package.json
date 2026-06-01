@@ -1,10 +1,10 @@
 {
-  "name": "@spectre/octo",
+  "name": "octo-monorepo",
   "version": "0.1.0",
-  "description": "CLI de orquestração de builds, versionamento e infraestrutura para o monorepo Spectre",
+  "description": "CLI for monorepo build orchestration, semantic versioning, and local infrastructure management",
   "type": "module",
   "license": "MIT",
-  "author": "Spectre Platform",
+  "author": "vguerato",
   "repository": {
     "type": "git",
     "url": "https://github.com/vguerato/octo.git"
@@ -21,7 +21,9 @@
     "docker",
     "semver",
     "versioning",
-    "infrastructure"
+    "infrastructure",
+    "dependency-graph",
+    "topological-sort"
   ],
   "bin": {
     "octo": "./src/cli/index.ts"

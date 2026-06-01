@@ -5,10 +5,10 @@
   <img src="https://img.shields.io/badge/pnpm-11-orange" alt="pnpm" />
 </p>
 
-<h1 align="center">🐙 Octo CLI</h1>
+<h1 align="center">🐙 Octo</h1>
 
 <p align="center">
-  <strong>Build orchestration, semantic versioning, and local infrastructure management for the Spectre monorepo.</strong>
+  <strong>Build orchestration, semantic versioning, and local infrastructure management for monorepos.</strong>
 </p>
 
 <p align="center">
@@ -19,7 +19,7 @@
 
 ## Why Octo?
 
-Managing a monorepo with 8+ microservices and shared packages means dealing with:
+Managing a monorepo with multiple microservices and shared packages means dealing with:
 
 - **Manual build ordering** — services depend on shared packages that must be built first
 - **Version drift** — bumping a shared SDK requires updating every consumer by hand
@@ -33,10 +33,7 @@ Octo solves all three with a single CLI that understands your dependency graph.
 
 ```bash
 # Install globally
-pnpm add -g @spectre/octo
-
-# Or via install script
-curl -fsSL https://spectre.dev/octo/install.sh | sh
+pnpm add -g octo-monorepo
 
 # Initialize in your monorepo
 octo init
@@ -45,7 +42,7 @@ octo init
 octo build
 
 # Bump a shared package and propagate
-octo bump @spectre/events minor --install
+octo bump @myorg/shared-lib minor --install
 
 # Spin up all infrastructure
 octo up
@@ -84,15 +81,13 @@ Displays the dependency graph as an indented adjacency list.
 ```bash
 $ octo graph
 
-auth
-  @spectre/events
-  @spectre/typescript-config
-workspace
-  @spectre/events
-agentic
-  @spectre/events
-@spectre/events
-@spectre/typescript-config
+api-gateway
+  @myorg/shared-lib
+  @myorg/config
+user-service
+  @myorg/shared-lib
+@myorg/shared-lib
+@myorg/config
 ```
 
 ---
@@ -103,7 +98,7 @@ Orchestrates Docker builds respecting topological order with maximum parallelism
 
 ```bash
 octo build                # Build all services
-octo build auth           # Build auth + modified dependencies
+octo build api-gateway    # Build api-gateway + modified dependencies
 octo build --affected     # Build only changed services since last build
 ```
 
@@ -121,10 +116,10 @@ octo build --affected     # Build only changed services since last build
 Increments a package version following [Semantic Versioning 2.0.0](https://semver.org/).
 
 ```bash
-octo bump @spectre/events           # patch (default)
-octo bump @spectre/events minor     # minor
-octo bump @spectre/events major     # major
-octo bump @spectre/events --install # also runs pnpm install in consumers
+octo bump @myorg/shared-lib           # patch (default)
+octo bump @myorg/shared-lib minor     # minor
+octo bump @myorg/shared-lib major     # major
+octo bump @myorg/shared-lib --install # also runs pnpm install in consumers
 ```
 
 **Pipeline:**
@@ -145,8 +140,8 @@ pre-bump hooks → version increment → build verification → changelog → gi
 Merges all `docker-compose.yml` files and starts infrastructure containers.
 
 ```bash
-octo up          # All infrastructure
-octo up auth     # Only auth's dependencies
+octo up              # All infrastructure
+octo up user-service # Only user-service's dependencies
 ```
 
 **Features:**
@@ -175,10 +170,10 @@ Displays container state in tabular format.
 ```bash
 $ octo status
 
-NOME                           IMAGEM                              ESTADO       PORTA
-spectre-postgres               postgres:16                         running      5432:5432
-spectre-redis                  redis:7-alpine                      running      6379:6379
-spectre-nats                   nats:2.10                           running      4222:4222
+NAME                           IMAGE                               STATE        PORT
+my-postgres                    postgres:16                         running      5432:5432
+my-redis                       redis:7-alpine                      running      6379:6379
+my-nats                        nats:2.10                           running      4222:4222
 ```
 
 ---
@@ -201,15 +196,14 @@ hooks:
 
 # Services — directories with Dockerfile
 services:
-  - auth
-  - workspace
-  - agentic
-  - gateway
+  - api-gateway
+  - user-service
+  - billing-service
 
 # Shared packages — libraries consumed by services
 packages:
-  - "@spectre/events"
-  - "@spectre/typescript-config"
+  - "@myorg/shared-lib"
+  - "@myorg/config"
 ```
 
 ### Path Resolution
@@ -218,8 +212,8 @@ By default, Octo resolves paths automatically by searching for a directory whose
 
 ```yaml
 services:
-  - auth:
-      path: ./custom/auth-service
+  - api-gateway:
+      path: ./custom/gateway-dir
 ```
 
 ### Dependency Detection
@@ -242,42 +236,33 @@ In aggregated mode, if a root `octo.yaml` exists alongside sub-manifests, the ro
 ## Architecture
 
 ```
-packages/octo/
-├── src/
-│   ├── cli/              # Command definitions (Commander.js)
-│   │   ├── index.ts      # Entry point + signal handlers
-│   │   ├── init.command.ts
-│   │   ├── graph.command.ts
-│   │   ├── build.command.ts
-│   │   ├── bump.command.ts
-│   │   ├── up.command.ts
-│   │   ├── down.command.ts
-│   │   └── status.command.ts
-│   ├── manifest/         # YAML parsing, validation, discovery
-│   ├── graph/            # DAG, topological sort, cross-project resolution
-│   ├── build/            # Port-Adapter build engine, scheduler, affected detector
-│   ├── hooks/            # Pre-build/pre-bump hook runner
-│   ├── version/          # Semver bumper, propagator, changelog generator
-│   ├── infra/            # Compose aggregator, LLM smart merger, infra manager
-│   └── shared/           # Logger, process runner, errors, graceful shutdown
-├── test/
-│   ├── unit/             # Vitest unit tests
-│   └── property/         # fast-check property-based tests
-├── scripts/
-│   └── install.sh        # Global installer script
-├── package.json
-├── tsconfig.json
-└── vitest.config.ts
+src/
+├── cli/              # Command definitions (Commander.js)
+│   ├── index.ts      # Entry point + signal handlers
+│   ├── init.command.ts
+│   ├── graph.command.ts
+│   ├── build.command.ts
+│   ├── bump.command.ts
+│   ├── up.command.ts
+│   ├── down.command.ts
+│   └── status.command.ts
+├── manifest/         # YAML parsing, validation, discovery
+├── graph/            # DAG, topological sort, cross-project resolution
+├── build/            # Port-Adapter build engine, scheduler, affected detector
+├── hooks/            # Pre-build/pre-bump hook runner
+├── version/          # Semver bumper, propagator, changelog generator
+├── infra/            # Compose aggregator, LLM smart merger, infra manager
+└── shared/           # Logger, process runner, errors, graceful shutdown
 ```
 
 ### Key Design Decisions
 
 | Decision | Rationale |
 |----------|-----------|
-| Standalone CLI (not NestJS) | Dev tool, not a microservice. No DI overhead needed |
+| Standalone CLI | Dev tool, not a framework. Zero DI overhead |
 | Commander.js | Mature, typed, subcommand support, auto-complete |
 | `yaml` (npm) | AST-based — preserves comments and key order |
-| Zod validation | Consistent with Spectre stack, descriptive error paths |
+| Zod validation | Descriptive error paths, collect all errors at once |
 | Port-Adapter for build engines | Decouples orchestration from concrete build mechanism |
 | Docker via CLI (not dockerode) | Shell execution, no library dependency |
 | In-memory adjacency list | Sufficient for monorepos up to ~100 packages |
@@ -369,4 +354,4 @@ All errors follow a consistent format:
 
 ## License
 
-MIT © Spectre Platform
+MIT
