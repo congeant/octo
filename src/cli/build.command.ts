@@ -62,7 +62,7 @@ export async function buildCommand(service?: string, opts?: { affected?: boolean
     // Validate service name against manifest
     const allNames = [
       ...manifest.services.map(entryName),
-      ...manifest.packages.map(entryName),
+      ...(manifest.packages ?? []).map(entryName),
     ];
 
     if (!allNames.includes(service)) {

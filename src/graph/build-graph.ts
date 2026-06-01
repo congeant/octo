@@ -83,7 +83,7 @@ export function buildGraphFromManifest(manifest: OctoManifest, rootDir: string):
     const resolved = resolveEntry(entry);
     allEntries.push({ ...resolved, type: 'service' });
   }
-  for (const entry of manifest.packages) {
+  for (const entry of manifest.packages ?? []) {
     const resolved = resolveEntry(entry);
     allEntries.push({ ...resolved, type: 'package' });
   }

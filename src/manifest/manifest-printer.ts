@@ -63,10 +63,15 @@ export function printManifest(manifest: OctoManifest, originalContent?: string):
 
   // Only update services/packages if values actually changed
   for (const key of ['services', 'packages'] as const) {
+    const value = manifest[key];
+    if (value === undefined) {
+      if (doc.has(key)) doc.delete(key);
+      continue;
+    }
     const existingNode = doc.get(key, true);
     const existingPlain = nodeToPlain(existingNode);
-    if (!deepEqual(existingPlain, manifest[key])) {
-      doc.set(key, manifest[key]);
+    if (!deepEqual(existingPlain, value)) {
+      doc.set(key, value);
     }
     // If equal, leave the AST node untouched (preserves all comments)
   }

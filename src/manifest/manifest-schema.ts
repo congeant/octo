@@ -25,7 +25,7 @@ export const OctoManifestSchema = z.object({
     'pre-bump': z.array(HookDefinitionSchema).optional(),
   }).optional(),
   services: z.array(ServiceEntrySchema),
-  packages: z.array(PackageEntrySchema),
+  packages: z.array(PackageEntrySchema).optional(),
 });
 
 export type OctoManifest = z.infer<typeof OctoManifestSchema>;

@@ -90,17 +90,21 @@ export async function initCommand(opts: { standalone?: boolean }): Promise<void>
   }
 
   if (results.length === 0) {
-    throw new OctoError('Nenhum pacote com package.json válido encontrado.', 1);
+    logger.info('Nenhum pacote com package.json encontrado. Criando octo.yaml vazio.');
   }
 
   const services = results.filter((p) => p.hasDockerfile).map((p) => p.name);
   const packages = results.filter((p) => !p.hasDockerfile).map((p) => p.name);
 
-  const manifest: OctoManifest = { services, packages };
+  const manifest: OctoManifest = { services };
+  if (packages.length > 0) {
+    manifest.packages = packages;
+  }
+
   const yaml = printManifest(manifest);
 
   const outputPath = join(rootDir, 'octo.yaml');
   await writeFile(outputPath, yaml, 'utf-8');
 
-  logger.info(`octo.yaml gerado com ${services.length} serviço(s) e ${packages.length} pacote(s).`);
+  logger.info(`octo.yaml gerado com ${services.length} serviço(s)${packages.length > 0 ? ` e ${packages.length} pacote(s)` : ''}.`);
 }

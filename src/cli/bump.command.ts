@@ -40,7 +40,7 @@ export async function bumpCommand(pkg: string, type: string, opts: BumpCommandOp
 
   const allNames = [
     ...manifest.services.map(entryName),
-    ...manifest.packages.map(entryName),
+    ...(manifest.packages ?? []).map(entryName),
   ];
 
   if (!allNames.includes(pkg)) {

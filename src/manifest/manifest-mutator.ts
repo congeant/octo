@@ -21,7 +21,7 @@ export function loadOrCreateManifest(manifestPath: string): LoadedManifest {
     }
     throw new OctoError(`octo.yaml inválido: ${parsed.error.message}`);
   }
-  return { manifest: { services: [], packages: [] } };
+  return { manifest: { services: [] } };
 }
 
 /**
@@ -37,7 +37,11 @@ export function addEntry(
   dirName: string,
   type: 'service' | 'package',
 ): boolean {
-  const list = type === 'service' ? manifest.services : manifest.packages;
+  if (type === 'package' && !manifest.packages) {
+    manifest.packages = [];
+  }
+
+  const list = type === 'service' ? manifest.services : manifest.packages!;
 
   const alreadyExists = list.some((entry) => {
     if (typeof entry === 'string') return entry === name;
