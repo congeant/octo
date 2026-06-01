@@ -20,9 +20,28 @@ async function hasModel(model: string): Promise<boolean> {
 }
 
 /**
+ * Ensures a system dependency is available, installing it if the user agrees.
+ */
+async function ensureDependency(command: string, installCmd: string, name: string): Promise<boolean> {
+  const check = await run('which', [command], { timeout: 5_000 });
+  if (check.exitCode === 0) return true;
+
+  const shouldInstall = await confirm(`${name} não encontrado (necessário para Ollama). Instalar? (s/n) `);
+  if (!shouldInstall) return false;
+
+  const result = await run('sudo', installCmd.split(' '), { timeout: 60_000, interactive: true });
+  return result.exitCode === 0;
+}
+
+/**
  * Installs Ollama via the official install script.
  */
 async function install(): Promise<boolean> {
+  // Ollama requires zstd for extraction
+  if (!await ensureDependency('zstd', 'apt-get install -y zstd', 'zstd')) {
+    return false;
+  }
+
   logger.info('Instalando Ollama...');
   const result = await run('curl -fsSL https://ollama.com/install.sh | sh', [], {
     timeout: 120_000,
