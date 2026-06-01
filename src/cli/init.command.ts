@@ -2,7 +2,6 @@ import { readdir, readFile, access, writeFile } from 'node:fs/promises';
 import { join, relative } from 'node:path';
 import { logger } from '../shared/logger.js';
 import { printManifest } from '../manifest/manifest-printer.js';
-import { ensureOllamaSetup } from '../shared/ollama.js';
 import type { OctoManifest } from '../manifest/manifest-schema.js';
 
 const EXCLUDED_DIRS = new Set(['node_modules', 'dist']);
@@ -67,8 +66,6 @@ async function scanDirectory(
 }
 
 export async function initCommand(opts: { standalone?: boolean }): Promise<void> {
-  await ensureOllamaSetup();
-
   const rootDir = process.cwd();
   const results: DiscoveredProject[] = [];
 

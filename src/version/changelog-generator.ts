@@ -1,14 +1,12 @@
 import { readFile, writeFile } from 'node:fs/promises';
 import { join } from 'node:path';
-import { Ollama } from 'ollama';
+import { generate } from '../shared/llm.js';
 import { run } from '../shared/process-runner.js';
 import { logger } from '../shared/logger.js';
 
 const HEADER = '# Changelog\n';
 
 export class ChangelogGenerator {
-  private ollama = new Ollama();
-
   async generate(packageDir: string, newVersion: string): Promise<string> {
     const changelogPath = join(packageDir, 'CHANGELOG.md');
     const commits = await this.getCommitsSinceLastTag(packageDir);
@@ -60,10 +58,6 @@ export class ChangelogGenerator {
 
   private async generateWithLLM(version: string, date: string, commits: string[]): Promise<string | null> {
     try {
-      const models = await this.ollama.list();
-      const hasModel = models.models.some((m) => m.name.startsWith('phi4'));
-      if (!hasModel) return null;
-
       const commitList = commits.map((c) => `- ${c}`).join('\n');
       const prompt = `You are a changelog writer. Given these git commits, generate a concise, well-organized changelog entry in Keep a Changelog format.
 
@@ -75,12 +69,10 @@ ${commitList}
 
 Output ONLY the markdown sections (### Added, ### Changed, etc.) with bullet points. No header, no version line.`;
 
-      const response = await this.ollama.generate({ model: 'phi4', prompt, stream: false });
-      const sections = response.response.trim();
-
+      const sections = await generate(prompt);
       if (!sections || sections.length < 10) return null;
 
-      return [`## [${version}] - ${date}`, '', sections, ''].join('\n');
+      return [`## [${version}] - ${date}`, '', sections.trim(), ''].join('\n');
     } catch {
       return null;
     }

@@ -1,5 +1,5 @@
-import { Ollama } from 'ollama';
 import { z } from 'zod';
+import { generateJSON, isAvailable } from '../shared/llm.js';
 import { createComposeAggregator, type DiscoveredCompose, type MergedCompose } from './compose-aggregator.js';
 import { logger } from '../shared/logger.js';
 
@@ -14,7 +14,7 @@ export interface ComposeSmartMerger {
   deduplicate(composes: DiscoveredCompose[]): Promise<MergedCompose>;
 }
 
-/** Build the structured prompt for Phi-4 */
+/** Build the structured prompt */
 function buildPrompt(composes: DiscoveredCompose[]): string {
   const composesText = composes
     .map((c) => `--- ${c.serviceName} (${c.path}) ---\n${JSON.stringify(c.content, null, 2)}`)
@@ -36,18 +36,7 @@ Return ONLY valid JSON with this exact structure:
 {"services": {...}, "networks": {...}, "volumes": {...}}`;
 }
 
-/** Check if Ollama is available with phi4 model */
-async function isOllamaAvailable(client: Ollama): Promise<boolean> {
-  try {
-    const models = await client.list();
-    return models.models.some((m) => m.name.startsWith('phi4'));
-  } catch {
-    return false;
-  }
-}
-
 export function createComposeSmartMerger(): ComposeSmartMerger {
-  const client = new Ollama();
   const aggregator = createComposeAggregator();
 
   return {
@@ -57,32 +46,26 @@ export function createComposeSmartMerger(): ComposeSmartMerger {
       }
 
       // Try LLM-based merge
-      if (await isOllamaAvailable(client)) {
+      if (await isAvailable()) {
         try {
-          logger.info('Usando Phi-4 para merge inteligente de compose files...');
+          logger.info('Usando IA local para merge inteligente de compose files...');
           const prompt = buildPrompt(composes);
-          const response = await client.generate({
-            model: 'phi4',
-            prompt,
-            format: 'json',
-            stream: false,
-          });
+          const parsed = await generateJSON(prompt);
 
-          const parsed = JSON.parse(response.response);
-          const validated = MergedComposeSchema.safeParse(parsed);
-
-          if (validated.success) {
-            logger.info('Merge inteligente concluído com sucesso.');
-            return validated.data;
+          if (parsed) {
+            const validated = MergedComposeSchema.safeParse(parsed);
+            if (validated.success) {
+              logger.info('Merge inteligente concluído com sucesso.');
+              return validated.data;
+            }
+            logger.warn('Output da IA falhou na validação. Usando fallback determinístico.');
           }
-
-          logger.warn('Output da LLM falhou na validação Zod. Usando fallback determinístico.');
         } catch (err) {
           const msg = err instanceof Error ? err.message : String(err);
-          logger.warn(`Erro ao usar Phi-4: ${msg}. Usando fallback determinístico.`);
+          logger.warn(`Erro ao usar IA: ${msg}. Usando fallback determinístico.`);
         }
       } else {
-        logger.info('Ollama/Phi-4 indisponível. Usando merge determinístico.');
+        logger.info('IA local indisponível. Usando merge determinístico.');
       }
 
       // Fallback: deterministic merge
