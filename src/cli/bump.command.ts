@@ -65,7 +65,6 @@ export async function bumpCommand(pkg: string, type: string, opts: BumpCommandOp
     push: opts.push,
     tag: opts.tag,
     auto: opts.auto,
-    manifest,
   });
 
   // Generate changelog (uses LLM when available)

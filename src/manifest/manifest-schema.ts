@@ -19,18 +19,11 @@ export const PackageEntrySchema = z.union([
   })),
 ]);
 
-export const TemplatesSchema = z.object({
-  commit: z.string().optional(),
-  tag: z.string().optional(),
-  pr: z.string().optional(),
-}).optional();
-
 export const OctoManifestSchema = z.object({
   hooks: z.object({
     'pre-build': z.array(HookDefinitionSchema).optional(),
     'pre-bump': z.array(HookDefinitionSchema).optional(),
   }).optional(),
-  templates: TemplatesSchema,
   services: z.array(ServiceEntrySchema),
   packages: z.array(PackageEntrySchema),
 });

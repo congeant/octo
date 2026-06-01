@@ -5,8 +5,6 @@ import semver from 'semver';
 import { run } from '../shared/process-runner.js';
 import { logger } from '../shared/logger.js';
 import { OctoError } from '../shared/errors.js';
-import type { OctoManifest } from '../manifest/manifest-schema.js';
-import { renderTemplate, getCommitTemplate, getTagTemplate } from './template-renderer.js';
 
 export type BumpType = 'patch' | 'minor' | 'major';
 
@@ -14,7 +12,6 @@ export interface BumpOptions {
   push?: boolean;
   tag?: boolean;
   auto?: boolean;
-  manifest?: OctoManifest;
 }
 
 export interface BumpResult {
@@ -85,28 +82,15 @@ export class VersionBumper {
       throw new OctoError(`Build failed after bump of ${packageName}`);
     }
 
-    // Template context
-    const ctx = {
-      name: packageName,
-      version: newVersion,
-      previousVersion,
-      type,
-      date: new Date().toISOString().slice(0, 10),
-    };
-
-    // Commit with template
-    const commitTemplate = options.manifest ? getCommitTemplate(options.manifest) : 'chore({{name}}): bump version to {{version}}';
-    const commitMsg = renderTemplate(commitTemplate, ctx);
-
+    // Commit
+    const commitMsg = `chore(${packageName}): bump version to ${newVersion}`;
     await run('git', ['add', pkgJsonPath], { cwd: packageDir });
     await run('git', ['commit', '-m', commitMsg], { cwd: packageDir });
     logger.info(`Commit: ${commitMsg}`);
 
     // Tag (if --tag or --auto)
     if (options.tag || options.auto) {
-      const tagTemplate = options.manifest ? getTagTemplate(options.manifest) : '{{name}}@{{version}}';
-      const tagName = renderTemplate(tagTemplate, ctx);
-
+      const tagName = `${packageName}@${newVersion}`;
       await run('git', ['tag', '-a', tagName, '-m', `Release ${tagName}`], { cwd: packageDir });
       logger.info(`Tag created: ${tagName}`);
     }
