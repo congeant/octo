@@ -6,6 +6,8 @@ export interface RunOptions {
   env?: Record<string, string>;
   /** When true, inherits stdio so the user can interact (e.g. git password prompts) */
   interactive?: boolean;
+  /** When true, runs command through the system shell. Use only for piped commands. */
+  shell?: boolean;
 }
 
 export interface RunResult {
@@ -16,13 +18,13 @@ export interface RunResult {
 
 /** Wrapper for child_process.spawn with Promise, timeout, and stdout/stderr capture */
 export function run(command: string, args: string[] = [], options: RunOptions = {}): Promise<RunResult> {
-  const { cwd, timeout = 60_000, env, interactive = false } = options;
+  const { cwd, timeout = 60_000, env, interactive = false, shell = false } = options;
 
   return new Promise((resolve, reject) => {
     const child = spawn(command, args, {
       cwd,
       env: env ? { ...process.env, ...env } : process.env,
-      shell: true,
+      shell,
       stdio: interactive ? 'inherit' : 'pipe',
     });
 

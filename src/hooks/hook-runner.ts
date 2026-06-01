@@ -29,7 +29,7 @@ export async function runHooks(trigger: HookTrigger, context: HookContext): Prom
     logger.info(`Running hook "${hook.name}" (${trigger})...`);
     const start = Date.now();
 
-    const result = await run(hook.command, [], { cwd: context.workingDir });
+    const result = await run(hook.command, [], { cwd: context.workingDir, shell: true });
     const durationMs = Date.now() - start;
     const output = (result.stdout + result.stderr).trim() || undefined;
 

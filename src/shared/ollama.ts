@@ -24,9 +24,10 @@ async function hasModel(model: string): Promise<boolean> {
  */
 async function install(): Promise<boolean> {
   logger.info('Instalando Ollama...');
-  const result = await run('curl', ['-fsSL', 'https://ollama.com/install.sh', '|', 'sh'], {
+  const result = await run('curl -fsSL https://ollama.com/install.sh | sh', [], {
     timeout: 120_000,
     interactive: true,
+    shell: true,
   });
   return result.exitCode === 0;
 }
