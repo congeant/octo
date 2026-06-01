@@ -1,4 +1,4 @@
-import { spawn } from 'node:child_process';
+import { execaCommand, execa } from 'execa';
 
 export interface RunOptions {
   cwd?: string;
@@ -6,7 +6,7 @@ export interface RunOptions {
   env?: Record<string, string>;
   /** When true, inherits stdio so the user can interact (e.g. git password prompts) */
   interactive?: boolean;
-  /** When true, runs command through the system shell. Use only for piped commands. */
+  /** When true, runs command through the system shell. Use only for piped/complex commands. */
   shell?: boolean;
 }
 
@@ -16,39 +16,31 @@ export interface RunResult {
   exitCode: number;
 }
 
-/** Wrapper for child_process.spawn with Promise, timeout, and stdout/stderr capture */
-export function run(command: string, args: string[] = [], options: RunOptions = {}): Promise<RunResult> {
+/**
+ * Executes a command with args. Powered by execa.
+ * Returns stdout, stderr, and exitCode without throwing on non-zero exit.
+ */
+export async function run(command: string, args: string[] = [], options: RunOptions = {}): Promise<RunResult> {
   const { cwd, timeout = 60_000, env, interactive = false, shell = false } = options;
 
-  return new Promise((resolve, reject) => {
-    const child = spawn(command, args, {
-      cwd,
-      env: env ? { ...process.env, ...env } : process.env,
-      shell,
-      stdio: interactive ? 'inherit' : 'pipe',
-    });
+  const execOptions = {
+    cwd,
+    env: env ? { ...process.env, ...env } : undefined,
+    timeout,
+    shell,
+    reject: false,
+    stdin: interactive ? 'inherit' as const : undefined,
+    stdout: interactive ? 'inherit' as const : 'pipe' as const,
+    stderr: interactive ? 'inherit' as const : 'pipe' as const,
+  };
 
-    let stdout = '';
-    let stderr = '';
+  const result = shell && args.length === 0
+    ? await execaCommand(command, execOptions)
+    : await execa(command, args, execOptions);
 
-    if (!interactive) {
-      child.stdout!.on('data', (data: Buffer) => { stdout += data.toString(); });
-      child.stderr!.on('data', (data: Buffer) => { stderr += data.toString(); });
-    }
-
-    const timer = setTimeout(() => {
-      child.kill('SIGTERM');
-      reject(new Error(`Command timed out after ${timeout}ms: ${command} ${args.join(' ')}`));
-    }, timeout);
-
-    child.on('close', (code) => {
-      clearTimeout(timer);
-      resolve({ stdout, stderr, exitCode: code ?? 1 });
-    });
-
-    child.on('error', (err) => {
-      clearTimeout(timer);
-      reject(err);
-    });
-  });
+  return {
+    stdout: result.stdout ?? '',
+    stderr: result.stderr ?? '',
+    exitCode: result.exitCode ?? 1,
+  };
 }
