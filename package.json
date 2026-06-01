@@ -1,6 +1,6 @@
 {
   "name": "octo-dev",
-  "version": "0.4.0",
+  "version": "0.4.1",
   "description": "CLI for monorepo build orchestration, semantic versioning, and local infrastructure management",
   "type": "module",
   "license": "MIT",
