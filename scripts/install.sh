@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # Octo CLI — Installer
-# Usage: curl -fsSL https://raw.githubusercontent.com/vguerato/octo/main/scripts/install.sh | sh
+# Usage: curl -fsSL https://raw.githubusercontent.com/congeant/octo/main/scripts/install.sh | sh
 
 set -euo pipefail
 

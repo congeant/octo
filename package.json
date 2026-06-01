@@ -4,14 +4,14 @@
   "description": "CLI for monorepo build orchestration, semantic versioning, and local infrastructure management",
   "type": "module",
   "license": "MIT",
-  "author": "vguerato",
+  "author": "congeant",
   "repository": {
     "type": "git",
-    "url": "https://github.com/vguerato/octo.git"
+    "url": "https://github.com/congeant/octo.git"
   },
-  "homepage": "https://github.com/vguerato/octo#readme",
+  "homepage": "https://github.com/congeant/octo#readme",
   "bugs": {
-    "url": "https://github.com/vguerato/octo/issues"
+    "url": "https://github.com/congeant/octo/issues"
   },
   "keywords": [
     "cli",
