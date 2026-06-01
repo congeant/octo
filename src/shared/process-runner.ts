@@ -4,6 +4,8 @@ export interface RunOptions {
   cwd?: string;
   timeout?: number;
   env?: Record<string, string>;
+  /** When true, inherits stdio so the user can interact (e.g. git password prompts) */
+  interactive?: boolean;
 }
 
 export interface RunResult {
@@ -14,20 +16,23 @@ export interface RunResult {
 
 /** Wrapper for child_process.spawn with Promise, timeout, and stdout/stderr capture */
 export function run(command: string, args: string[] = [], options: RunOptions = {}): Promise<RunResult> {
-  const { cwd, timeout = 60_000, env } = options;
+  const { cwd, timeout = 60_000, env, interactive = false } = options;
 
   return new Promise((resolve, reject) => {
     const child = spawn(command, args, {
       cwd,
       env: env ? { ...process.env, ...env } : process.env,
       shell: true,
+      stdio: interactive ? 'inherit' : 'pipe',
     });
 
     let stdout = '';
     let stderr = '';
 
-    child.stdout.on('data', (data: Buffer) => { stdout += data.toString(); });
-    child.stderr.on('data', (data: Buffer) => { stderr += data.toString(); });
+    if (!interactive) {
+      child.stdout!.on('data', (data: Buffer) => { stdout += data.toString(); });
+      child.stderr!.on('data', (data: Buffer) => { stderr += data.toString(); });
+    }
 
     const timer = setTimeout(() => {
       child.kill('SIGTERM');

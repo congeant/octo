@@ -77,4 +77,13 @@ program
     await statusCommand();
   });
 
+program
+  .command('add <repo-url>')
+  .description('Clona um repositório e registra no octo.yaml')
+  .option('--name <name>', 'Nome customizado para o diretório clonado')
+  .action(async (repoUrl, opts) => {
+    const { addCommand } = await import('./add.command.js');
+    await addCommand(repoUrl, opts);
+  });
+
 program.parse();

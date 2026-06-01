@@ -1,4 +1,4 @@
-import { readdirSync, statSync, existsSync } from 'node:fs';
+import { readdirSync, readFileSync, statSync, existsSync } from 'node:fs';
 import { join, relative } from 'node:path';
 import { ManifestError } from '../shared/errors.js';
 import { logger } from '../shared/logger.js';
@@ -141,4 +141,30 @@ export function displayDiscoveredProjects(rootDir: string): DiscoveredManifest[]
 
   detectNameCollisions(manifests);
   return manifests;
+}
+
+/**
+ * Detects whether a project directory is a service (has Dockerfile) or a package.
+ */
+export function detectProjectType(projectDir: string): 'service' | 'package' {
+  return existsSync(join(projectDir, 'Dockerfile')) ? 'service' : 'package';
+}
+
+/**
+ * Resolves the project name from package.json, falling back to the directory name.
+ */
+export function resolveProjectName(projectDir: string, fallbackName: string): string {
+  const pkgPath = join(projectDir, 'package.json');
+  if (existsSync(pkgPath)) {
+    try {
+      const content = readFileSync(pkgPath, 'utf-8');
+      const pkg = JSON.parse(content);
+      if (pkg.name && typeof pkg.name === 'string') {
+        return pkg.name;
+      }
+    } catch {
+      // Fall through to fallback
+    }
+  }
+  return fallbackName;
 }
