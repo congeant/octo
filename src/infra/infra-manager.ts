@@ -45,6 +45,7 @@ async function waitForHealthcheck(containerName: string): Promise<boolean> {
     const result = await run('docker', [
       'inspect', '--format', '{{if .State.Health}}{{.State.Health.Status}}{{else}}none{{end}}', containerName,
     ]);
+    if (result.exitCode !== 0) return true; // container not found or no healthcheck — skip
     const status = result.stdout.trim();
     if (status === 'healthy' || status === 'none') return true;
     if (status === 'unhealthy') return false;
@@ -92,18 +93,18 @@ export function createInfraManager(servicePaths: string[], rootDir: string): Inf
       }
 
       // Wait for healthchecks on running services
-      const psResult = await run('docker', ['compose', '-f', composePath, 'ps', '--format', '{{.Service}}']);
-      const serviceNames = psResult.stdout.trim().split('\n').filter(Boolean);
-      for (const svc of serviceNames) {
-        const healthy = await waitForHealthcheck(svc);
+      const psResult = await run('docker', ['compose', '-f', composePath, 'ps', '--format', '{{.Name}}']);
+      const containerNames = psResult.stdout.trim().split('\n').filter(Boolean);
+      for (const container of containerNames) {
+        const healthy = await waitForHealthcheck(container);
         if (!healthy) {
-          logger.error(`Healthcheck timeout for container "${svc}".`);
-          await showContainerLogs(svc);
-          return { success: false, message: `Healthcheck timeout: ${svc}` };
+          logger.error(`Healthcheck timeout for container "${container}".`);
+          await showContainerLogs(container);
+          return { success: false, message: `Healthcheck timeout: ${container}` };
         }
       }
 
-      return { success: true, message: `${serviceNames.length} container(s) started.` };
+      return { success: true, message: `${containerNames.length} container(s) started.` };
     },
 
     async down(options: { volumes?: boolean }): Promise<InfraResult> {
