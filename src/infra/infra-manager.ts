@@ -205,11 +205,14 @@ export function createInfraManager(servicePaths: string[], rootDir: string): Inf
       const composePath = await resolveComposePath(discovered, rootDir, smartMerger);
 
       logger.info('Starting containers with docker compose...');
-      const result = await run('docker', ['compose', '-f', composePath, 'up', '-d']);
+      const result = await run('docker', ['compose', '-f', composePath, 'up', '-d', '--build'], {
+        timeout: 600_000,
+        interactive: true,
+      });
       if (result.exitCode !== 0) {
         return {
           success: false,
-          message: `Failed to start containers. docker compose exited with code ${result.exitCode}:\n${result.stderr.trim()}`,
+          message: `Failed to start containers. docker compose exited with code ${result.exitCode}.`,
         };
       }
 
