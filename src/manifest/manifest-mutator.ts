@@ -1,4 +1,4 @@
-import { readFileSync, writeFileSync, pathExistsSync } from 'fs-extra';
+import { readFileSync, writeFileSync, existsSync } from 'node:fs';
 import { parseManifest } from './manifest-parser.js';
 import { printManifest } from './manifest-printer.js';
 import { OctoError } from '../shared/errors.js';
@@ -13,7 +13,7 @@ export interface LoadedManifest {
  * Loads an existing octo.yaml manifest, or returns a minimal empty one.
  */
 export function loadOrCreateManifest(manifestPath: string): LoadedManifest {
-  if (pathExistsSync(manifestPath)) {
+  if (existsSync(manifestPath)) {
     const content = readFileSync(manifestPath, 'utf-8');
     const parsed = parseManifest(content, manifestPath);
     if (parsed.ok) {

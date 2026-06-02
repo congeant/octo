@@ -1,4 +1,4 @@
-import { readFileSync, pathExistsSync } from 'fs-extra';
+import { readFileSync, existsSync } from 'node:fs';
 import { join, dirname, relative } from 'node:path';
 import { parse } from 'yaml';
 
@@ -88,7 +88,7 @@ export function createComposeAggregator(): ComposeAggregator {
       const results: DiscoveredCompose[] = [];
       for (const svcPath of servicePaths) {
         const composePath = join(svcPath, 'docker-compose.yml');
-        if (!pathExistsSync(composePath)) continue;
+        if (!existsSync(composePath)) continue;
         const raw = readFileSync(composePath, 'utf-8');
         const content = (parse(raw) ?? {}) as DockerComposeDocument;
         const serviceName = svcPath.split('/').pop() ?? svcPath;

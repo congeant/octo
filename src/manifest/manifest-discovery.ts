@@ -1,4 +1,4 @@
-import { readdirSync, readFileSync, statSync, pathExistsSync } from 'fs-extra';
+import { readdirSync, readFileSync, statSync, existsSync } from 'node:fs';
 import { join, relative } from 'node:path';
 import { ManifestError } from '../shared/errors.js';
 import { logger } from '../shared/logger.js';
@@ -29,7 +29,7 @@ function scanForManifests(dir: string, rootDir: string, depth: number): Discover
   const results: DiscoveredManifest[] = [];
   const manifestPath = join(dir, MANIFEST_FILENAME);
 
-  if (pathExistsSync(manifestPath)) {
+  if (existsSync(manifestPath)) {
     const dirName = relative(rootDir, dir) || '.';
     results.push({
       name: dirName === '.' ? 'root' : dirName,
@@ -147,7 +147,7 @@ export function displayDiscoveredProjects(rootDir: string): DiscoveredManifest[]
  * Detects whether a project directory is a service (has Dockerfile) or a package.
  */
 export function detectProjectType(projectDir: string): 'service' | 'package' {
-  return pathExistsSync(join(projectDir, 'Dockerfile')) ? 'service' : 'package';
+  return existsSync(join(projectDir, 'Dockerfile')) ? 'service' : 'package';
 }
 
 /**
@@ -155,7 +155,7 @@ export function detectProjectType(projectDir: string): 'service' | 'package' {
  */
 export function resolveProjectName(projectDir: string, fallbackName: string): string {
   const pkgPath = join(projectDir, 'package.json');
-  if (pathExistsSync(pkgPath)) {
+  if (existsSync(pkgPath)) {
     try {
       const content = readFileSync(pkgPath, 'utf-8');
       const pkg = JSON.parse(content);

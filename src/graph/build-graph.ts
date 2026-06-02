@@ -1,4 +1,4 @@
-import { pathExistsSync, readdirSync, statSync } from 'fs-extra';
+import { existsSync, readdirSync, statSync } from 'node:fs';
 import { join, resolve } from 'node:path';
 import { DependencyGraph, type GraphNode } from './dependency-graph.js';
 import { isRemoteRepo, extractRepoName } from '../shared/git.js';
@@ -99,7 +99,7 @@ export function buildGraphFromManifest(
       dir = findPackageDir(rootDir, entry.name, reader);
     }
 
-    if (!dir || !pathExistsSync(dir)) continue;
+    if (!dir || !existsSync(dir)) continue;
 
     resolvedPaths.set(entry.name, dir);
     graph.addNode({ name: entry.name, type: entry.type, path: dir });

@@ -1,4 +1,4 @@
-import { readJsonSync, pathExistsSync } from 'fs-extra';
+import { existsSync, readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import type { PackageReader, PackageMetadata } from '../ports/package-reader.port.js';
 
@@ -15,10 +15,10 @@ export class NodePackageReader implements PackageReader {
    */
   read(dir: string): PackageMetadata | undefined {
     const pkgPath = join(dir, 'package.json');
-    if (!pathExistsSync(pkgPath)) return undefined;
+    if (!existsSync(pkgPath)) return undefined;
 
     try {
-      const raw = readJsonSync(pkgPath);
+      const raw = JSON.parse(readFileSync(pkgPath, 'utf-8'));
       return {
         name: raw.name,
         version: raw.version,
