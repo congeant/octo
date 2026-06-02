@@ -15,7 +15,7 @@ program
 
 program
   .command('init')
-  .description('Scan the monorepo and generate octo.yaml')
+  .description('Scan the workspace and generate octo.yaml')
   .option('--standalone', 'Generate manifest for the current project only')
   .action(async (opts) => {
     const { initCommand } = await import('./init.command.js');
@@ -32,7 +32,7 @@ program
 
 program
   .command('build [service]')
-  .description('Build monorepo services')
+  .description('Build workspace services')
   .option('--affected', 'Build only affected services')
   .action(async (service, opts) => {
     const { buildCommand } = await import('./build.command.js');

@@ -8,7 +8,7 @@
 <h1 align="center">🐙 Octo</h1>
 
 <p align="center">
-  <strong>Build orchestration, semantic versioning, and local infrastructure management for monorepos.</strong>
+  <strong>Build orchestration, semantic versioning, and local infrastructure management for repository workspaces.</strong>
 </p>
 
 <p align="center">
@@ -19,7 +19,7 @@
 
 ## Why Octo?
 
-Managing a monorepo with multiple microservices and shared packages means dealing with:
+Managing a workspace with multiple repositories, microservices and shared packages means dealing with:
 
 - **Manual build ordering** — services depend on shared packages that must be built first
 - **Version drift** — bumping a shared SDK requires updating every consumer by hand
@@ -33,9 +33,9 @@ Octo solves all three with a single CLI that understands your dependency graph.
 
 ```bash
 # Install globally
-pnpm add -g octo-monorepo
+npm install -g octo-dev
 
-# Initialize in your monorepo
+# Initialize in your workspace
 octo init
 
 # Build everything in dependency order
@@ -65,7 +65,7 @@ octo up
 
 ### `octo init`
 
-Scans the monorepo, discovers services (directories with `Dockerfile`) and packages, and generates `octo.yaml`.
+Scans the workspace, discovers services (directories with `Dockerfile`) and packages, and generates `octo.yaml`.
 
 ```bash
 octo init                # Recursive scan, generates root manifest
