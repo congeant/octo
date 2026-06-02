@@ -1,72 +1,55 @@
-import { writeFileSync, chmodSync, unlinkSync } from 'node:fs';
-import { join } from 'node:path';
-import { tmpdir } from 'node:os';
 import { createInterface } from 'node:readline';
 
-const ASKPASS_SCRIPT = join(tmpdir(), '.octo-askpass');
+let cachedToken: string | undefined;
 
 /**
- * Prompts the user for a GitHub Personal Access Token (PAT) via stdin.
- * Input is hidden (not echoed to terminal).
+ * Prompts the user for a GitHub Personal Access Token via stdin.
+ * The token is held in memory only — never written to disk.
  *
- * @returns The token string entered by the user.
+ * @returns The token string, or undefined if the user skips (empty input).
  */
-async function promptToken(): Promise<string> {
+async function promptToken(): Promise<string | undefined> {
   const rl = createInterface({ input: process.stdin, output: process.stdout });
 
   return new Promise((resolve) => {
-    process.stdout.write('GitHub token (PAT): ');
-    // Disable echo for password input
-    if (process.stdin.isTTY) process.stdin.setRawMode?.(true);
-
-    let token = '';
-    process.stdin.once('data', (data) => {
-      token = data.toString().trim();
-      if (process.stdin.isTTY) process.stdin.setRawMode?.(false);
-      process.stdout.write('\n');
+    rl.question('GitHub token (PAT): ', (answer) => {
       rl.close();
-      resolve(token);
+      const token = answer.trim();
+      resolve(token || undefined);
     });
   });
 }
 
 /**
- * Sets up a temporary GIT_ASKPASS script that returns the provided token.
- * Git uses this script instead of prompting interactively for each clone.
+ * Acquires a GitHub token for git operations.
+ * Prompts once and caches in memory for the duration of the process.
+ * Returns env vars that embed the token directly in the clone URL via credential helper.
  *
- * @param token - The GitHub PAT to inject into git operations.
- * @returns Environment variables to pass to git commands.
+ * @returns Environment variables for git auth, or undefined if user skipped.
  */
-export function setupGitAuth(token: string): Record<string, string> {
-  const script = `#!/bin/sh\necho "${token}"`;
-  writeFileSync(ASKPASS_SCRIPT, script, { mode: 0o700 });
-  chmodSync(ASKPASS_SCRIPT, 0o700);
-
-  return {
-    GIT_ASKPASS: ASKPASS_SCRIPT,
-    GIT_TERMINAL_PROMPT: '0',
-  };
+export async function acquireGitToken(): Promise<string | undefined> {
+  if (cachedToken) return cachedToken;
+  cachedToken = await promptToken();
+  return cachedToken;
 }
 
 /**
- * Removes the temporary ASKPASS script from disk.
+ * Builds a git clone URL with embedded token for HTTPS auth.
+ * Format: https://<token>@github.com/org/repo.git
+ * The token never touches the filesystem — it lives only in the URL passed to git.
+ *
+ * @param baseUrl - The HTTPS clone URL (e.g. https://github.com/org/repo.git).
+ * @param token - The GitHub PAT.
+ * @returns URL with embedded credentials.
  */
-export function cleanupGitAuth(): void {
-  try {
-    unlinkSync(ASKPASS_SCRIPT);
-  } catch {
-    // Already cleaned or never created
-  }
+export function embedTokenInUrl(baseUrl: string, token: string): string {
+  return baseUrl.replace('https://', `https://${token}@`);
 }
 
 /**
- * Acquires a GitHub token from the user and returns env vars for git auth.
- * If the user provides an empty token, returns undefined (skip auth injection).
- *
- * @returns Environment variables for git auth, or undefined if skipped.
+ * Clears the cached token from memory.
+ * Call this after sync is complete for defense-in-depth.
  */
-export async function acquireGitToken(): Promise<Record<string, string> | undefined> {
-  const token = await promptToken();
-  if (!token) return undefined;
-  return setupGitAuth(token);
+export function clearCachedToken(): void {
+  cachedToken = undefined;
 }
