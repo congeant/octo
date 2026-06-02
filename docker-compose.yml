@@ -1,0 +1,493 @@
+services:
+  agentic:
+    build:
+      context: ./spectre-agentic
+      dockerfile: Dockerfile
+    container_name: spectre-agentic
+    ports:
+      - 3006:3006
+    environment:
+      NODE_ENV: development
+      MONGODB_URI: mongodb://spectre:spectre_dev@mongodb:27017/spectre_agentic?authSource=admin
+      NATS_URL: nats://nats:4222
+      QDRANT_URL: http://qdrant:6333
+      TEMPORAL_ADDRESS: temporal:7233
+    depends_on:
+      mongodb:
+        condition: service_healthy
+      nats:
+        condition: service_healthy
+      qdrant:
+        condition: service_healthy
+      temporal:
+        condition: service_healthy
+    restart: unless-stopped
+    networks:
+      - spectre-network
+  mongodb:
+    image: mongo:7
+    container_name: spectre-agentic-mongodb
+    ports:
+      - 27017:27017
+    environment:
+      MONGO_INITDB_ROOT_USERNAME: spectre
+      MONGO_INITDB_ROOT_PASSWORD: spectre_dev
+      MONGO_INITDB_DATABASE: spectre_agentic
+    volumes:
+      - agentic_mongodb_data:/data/db
+    healthcheck:
+      test:
+        - CMD
+        - mongosh
+        - --eval
+        - db.adminCommand('ping')
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks:
+      - spectre-network
+  qdrant:
+    image: qdrant/qdrant:latest
+    container_name: spectre-agentic-qdrant
+    ports:
+      - 6333:6333
+      - 6334:6334
+    volumes:
+      - agentic_qdrant_data:/qdrant/storage
+    healthcheck:
+      test:
+        - CMD-SHELL
+        - wget -qO- http://localhost:6333/readyz || exit 1
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks:
+      - spectre-network
+  scylladb:
+    image: scylladb/scylla:5.4
+    container_name: spectre-agentic-scylladb
+    ports:
+      - 9042:9042
+    command:
+      - --smp
+      - "1"
+      - --memory
+      - 512M
+      - --overprovisioned
+      - "1"
+    volumes:
+      - agentic_scylladb_data:/var/lib/scylla
+    healthcheck:
+      test:
+        - CMD-SHELL
+        - nodetool status | grep -q UN || exit 1
+      interval: 30s
+      timeout: 10s
+      retries: 10
+      start_period: 60s
+    networks:
+      - spectre-network
+  temporal:
+    image: temporalio/auto-setup:latest
+    container_name: spectre-agentic-temporal
+    ports:
+      - 7233:7233
+    environment:
+      DB: cassandra
+      CASSANDRA_SEEDS: scylladb
+      DYNAMIC_CONFIG_FILE_PATH: config/dynamicconfig/development-cass.yaml
+    depends_on:
+      scylladb:
+        condition: service_healthy
+    healthcheck:
+      test:
+        - CMD-SHELL
+        - tctl --address temporal:7233 cluster health || exit 1
+      interval: 15s
+      timeout: 10s
+      retries: 10
+      start_period: 30s
+    networks:
+      - spectre-network
+  temporal-ui:
+    image: temporalio/ui:latest
+    container_name: spectre-agentic-temporal-ui
+    ports:
+      - 8080:8080
+    environment:
+      TEMPORAL_ADDRESS: temporal:7233
+    depends_on:
+      temporal:
+        condition: service_healthy
+    networks:
+      - spectre-network
+  nats:
+    image: nats:2-alpine
+    container_name: spectre-agentic-nats
+    ports:
+      - 4222:4222
+      - 8222:8222
+    command:
+      - --jetstream
+      - --store_dir
+      - /data
+    volumes:
+      - agentic_nats_data:/data
+    healthcheck:
+      test:
+        - CMD
+        - nats-server
+        - --signal
+        - ldm
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 5s
+    networks:
+      - spectre-network
+  auth:
+    build:
+      context: ./spectre-auth
+      dockerfile: Dockerfile
+    container_name: spectre-auth
+    ports:
+      - 3001:3001
+    environment:
+      NODE_ENV: development
+      DB_HOST: auth-postgres
+      DB_PORT: "5432"
+      DB_USERNAME: spectre
+      DB_PASSWORD: spectre_dev
+      DB_DATABASE: spectre_auth
+      NATS_URL: nats://nats:4222
+      JWT_ISSUER: spectre-auth
+      BCRYPT_ROUNDS: "12"
+    depends_on:
+      auth-postgres:
+        condition: service_healthy
+      nats:
+        condition: service_healthy
+    restart: unless-stopped
+    networks:
+      - spectre-network
+  auth-postgres:
+    image: postgres:16-alpine
+    container_name: spectre-auth-postgres
+    ports:
+      - 5433:5432
+    environment:
+      POSTGRES_DB: spectre_auth
+      POSTGRES_USER: spectre
+      POSTGRES_PASSWORD: spectre_dev
+    volumes:
+      - auth_postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test:
+        - CMD-SHELL
+        - pg_isready -U spectre -d spectre_auth
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks:
+      - spectre-network
+  gateway:
+    build:
+      context: ./spectre-gateway
+      dockerfile: Dockerfile
+    container_name: spectre-gateway
+    ports:
+      - 3000:3000
+    environment:
+      NODE_ENV: development
+      JWKS_URI: http://spectre-auth:3001/v1/auth/.well-known/jwks.json
+      REDIS_HOST: redis
+      REDIS_PORT: "6379"
+      NATS_URL: nats://nats:4222
+    depends_on:
+      redis:
+        condition: service_healthy
+      nats:
+        condition: service_healthy
+    restart: unless-stopped
+    networks:
+      - spectre-network
+  redis:
+    image: redis:7-alpine
+    container_name: spectre-gateway-redis
+    ports:
+      - 6380:6379
+    command:
+      - redis-server
+      - --appendonly
+      - yes
+    volumes:
+      - gateway_redis_data:/data
+    healthcheck:
+      test:
+        - CMD
+        - redis-cli
+        - ping
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks:
+      - spectre-network
+  integration:
+    build:
+      context: ./spectre-integrations
+      dockerfile: Dockerfile
+    container_name: spectre-integration
+    ports:
+      - 3004:3004
+    environment:
+      NODE_ENV: development
+      ELASTICSEARCH_URL: http://elasticsearch:9200
+      NATS_URL: nats://nats:4222
+      INTEGRATION_ENCRYPTION_KEY: 0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef
+    depends_on:
+      elasticsearch:
+        condition: service_healthy
+      nats:
+        condition: service_healthy
+    restart: unless-stopped
+    networks:
+      - spectre-network
+  elasticsearch:
+    image: docker.elastic.co/elasticsearch/elasticsearch:8.15.0
+    container_name: spectre-integration-elasticsearch
+    ports:
+      - 9200:9200
+    environment:
+      discovery.type: single-node
+      xpack.security.enabled: "false"
+      ES_JAVA_OPTS: -Xms512m -Xmx512m
+    volumes:
+      - integration_elasticsearch_data:/usr/share/elasticsearch/data
+    healthcheck:
+      test:
+        - CMD-SHELL
+        - curl -fsSL http://localhost:9200/_cluster/health || exit 1
+      interval: 15s
+      timeout: 10s
+      retries: 5
+      start_period: 30s
+    networks:
+      - spectre-network
+  notification:
+    build:
+      context: ./spectre-notifications
+      dockerfile: Dockerfile
+    container_name: spectre-notification
+    ports:
+      - 3007:3007
+    environment:
+      NODE_ENV: development
+      DB_HOST: notification-postgres
+      DB_PORT: "5432"
+      DB_USERNAME: spectre
+      DB_PASSWORD: spectre_dev
+      DB_DATABASE: spectre_notification
+      NATS_URL: nats://nats:4222
+      REDIS_HOST: redis
+      REDIS_PORT: "6379"
+    depends_on:
+      notification-postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      nats:
+        condition: service_healthy
+    restart: unless-stopped
+    networks:
+      - spectre-network
+  notification-postgres:
+    image: postgres:16-alpine
+    container_name: spectre-notification-postgres
+    ports:
+      - 5437:5432
+    environment:
+      POSTGRES_DB: spectre_notification
+      POSTGRES_USER: spectre
+      POSTGRES_PASSWORD: spectre_dev
+    volumes:
+      - notification_postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test:
+        - CMD-SHELL
+        - pg_isready -U spectre -d spectre_notification
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks:
+      - spectre-network
+  project:
+    build:
+      context: ./spectre-projects
+      dockerfile: Dockerfile
+    container_name: spectre-project
+    ports:
+      - 3005:3005
+    environment:
+      NODE_ENV: development
+      DB_HOST: project-postgres
+      DB_PORT: "5432"
+      DB_USERNAME: spectre
+      DB_PASSWORD: spectre_dev
+      DB_DATABASE: spectre_project
+      NATS_URL: nats://nats:4222
+      ENCRYPTION_KEY: 0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef
+    depends_on:
+      project-postgres:
+        condition: service_healthy
+      nats:
+        condition: service_healthy
+    restart: unless-stopped
+    networks:
+      - spectre-network
+  project-postgres:
+    image: postgres:16-alpine
+    container_name: spectre-project-postgres
+    ports:
+      - 5436:5432
+    environment:
+      POSTGRES_DB: spectre_project
+      POSTGRES_USER: spectre
+      POSTGRES_PASSWORD: spectre_dev
+    volumes:
+      - project_postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test:
+        - CMD-SHELL
+        - pg_isready -U spectre -d spectre_project
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks:
+      - spectre-network
+  task:
+    build:
+      context: ./spectre-tasks
+      dockerfile: Dockerfile
+    container_name: spectre-task
+    ports:
+      - 3003:3003
+    environment:
+      NODE_ENV: development
+      DB_HOST: task-postgres
+      DB_PORT: "5432"
+      DB_USERNAME: spectre
+      DB_PASSWORD: spectre_dev
+      DB_DATABASE: spectre_task
+      NATS_URL: nats://nats:4222
+    depends_on:
+      task-postgres:
+        condition: service_healthy
+      nats:
+        condition: service_healthy
+    restart: unless-stopped
+    networks:
+      - spectre-network
+  task-postgres:
+    image: postgres:16-alpine
+    container_name: spectre-task-postgres
+    ports:
+      - 5435:5432
+    environment:
+      POSTGRES_DB: spectre_task
+      POSTGRES_USER: spectre
+      POSTGRES_PASSWORD: spectre_dev
+    volumes:
+      - task_postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test:
+        - CMD-SHELL
+        - pg_isready -U spectre -d spectre_task
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks:
+      - spectre-network
+  web:
+    build:
+      context: ./spectre-web
+      dockerfile: Dockerfile
+    container_name: spectre-web
+    ports:
+      - 4000:3000
+    environment:
+      NODE_ENV: development
+      NEXT_PUBLIC_API_URL: http://localhost:3000
+    restart: unless-stopped
+    networks:
+      - spectre-network
+  workspace:
+    build:
+      context: ./spectre-workspaces
+      dockerfile: Dockerfile
+    container_name: spectre-workspace
+    ports:
+      - 3002:3002
+    environment:
+      NODE_ENV: development
+      DB_HOST: workspace-postgres
+      DB_PORT: "5432"
+      DB_USERNAME: spectre
+      DB_PASSWORD: spectre_dev
+      DB_DATABASE: spectre_workspace
+      NATS_URL: nats://nats:4222
+      QDRANT_URL: http://qdrant:6333
+      ENCRYPTION_KEY: 0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef
+    depends_on:
+      workspace-postgres:
+        condition: service_healthy
+      nats:
+        condition: service_healthy
+      qdrant:
+        condition: service_healthy
+    restart: unless-stopped
+    networks:
+      - spectre-network
+  workspace-postgres:
+    image: postgres:16-alpine
+    container_name: spectre-workspace-postgres
+    ports:
+      - 5434:5432
+    environment:
+      POSTGRES_DB: spectre_workspace
+      POSTGRES_USER: spectre
+      POSTGRES_PASSWORD: spectre_dev
+    volumes:
+      - workspace_postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test:
+        - CMD-SHELL
+        - pg_isready -U spectre -d spectre_workspace
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks:
+      - spectre-network
+networks:
+  spectre-network:
+    driver: bridge
+volumes:
+  agentic_mongodb_data: null
+  agentic_qdrant_data: null
+  agentic_scylladb_data: null
+  agentic_nats_data: null
+  auth_postgres_data: null
+  auth_nats_data: null
+  gateway_redis_data: null
+  gateway_nats_data: null
+  integration_elasticsearch_data: null
+  integration_nats_data: null
+  notification_postgres_data: null
+  notification_redis_data: null
+  notification_nats_data: null
+  project_postgres_data: null
+  project_nats_data: null
+  task_postgres_data: null
+  task_nats_data: null
+  workspace_postgres_data: null
+  workspace_qdrant_data: null
+  workspace_nats_data: null
