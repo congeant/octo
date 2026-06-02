@@ -1,0 +1,10 @@
+services:
+  - vguerato/spectre-web
+  - vguerato/spectre-workspaces
+  - vguerato/spectre-tasks
+  - vguerato/spectre-projects
+  - vguerato/spectre-notifications
+  - vguerato/spectre-integrations
+  - vguerato/spectre-gateway
+  - vguerato/spectre-agentic
+  - vguerato/spectre-auth

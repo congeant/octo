@@ -3,6 +3,7 @@ import { resolve } from 'node:path';
 import { parseManifest } from '../manifest/manifest-parser.js';
 import { buildGraphFromManifest } from '../graph/build-graph.js';
 import { createInfraManager } from '../infra/infra-manager.js';
+import { ensureRepositories } from '../shared/sync.js';
 import { logger } from '../shared/logger.js';
 import { OctoError } from '../shared/errors.js';
 
@@ -20,6 +21,7 @@ export async function upCommand(service?: string): Promise<void> {
   const parsed = parseManifest(content, manifestPath);
   if (!parsed.ok) throw parsed.error;
 
+  await ensureRepositories(parsed.value, rootDir);
   const graph = buildGraphFromManifest(parsed.value, rootDir);
 
   // Resolve service paths from graph

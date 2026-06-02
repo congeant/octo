@@ -1,6 +1,7 @@
 import { readFileSync, readdirSync, statSync, existsSync } from 'node:fs';
 import { join, resolve } from 'node:path';
 import { DependencyGraph, type GraphNode } from './dependency-graph.js';
+import { isRemoteRepo, extractRepoName } from '../shared/git.js';
 import type { OctoManifest, ServiceEntry, PackageEntry } from '../manifest/manifest-schema.js';
 
 interface PackageJson {
@@ -94,11 +95,14 @@ export function buildGraphFromManifest(manifest: OctoManifest, rootDir: string):
 
     if (entry.path) {
       dir = resolve(rootDir, entry.path);
+    } else if (isRemoteRepo(entry.name)) {
+      // org/repo format — directory is the repo name
+      dir = resolve(rootDir, extractRepoName(entry.name));
     } else {
       dir = findPackageDir(rootDir, entry.name);
     }
 
-    if (!dir) continue;
+    if (!dir || !existsSync(dir)) continue;
 
     resolvedPaths.set(entry.name, dir);
     const node: GraphNode = { name: entry.name, type: entry.type, path: dir };

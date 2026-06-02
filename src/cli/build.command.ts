@@ -6,6 +6,7 @@ import { createBuildOrchestrator } from '../build/build-orchestrator.js';
 import { createAffectedDetector } from '../build/affected-detector.js';
 import { DefaultBuildEngineRegistry } from '../build/ports/build-engine.port.js';
 import { DockerBuildEngine } from '../build/adapters/docker-build-engine.adapter.js';
+import { ensureRepositories } from '../shared/sync.js';
 import { OctoError } from '../shared/errors.js';
 import { logger } from '../shared/logger.js';
 import type { BuildResult } from '../build/build-scheduler.js';
@@ -31,6 +32,7 @@ export async function buildCommand(service?: string, opts?: { affected?: boolean
   if (!parsed.ok) throw parsed.error;
 
   const manifest = parsed.value;
+  await ensureRepositories(manifest, rootDir);
   const graph = buildGraphFromManifest(manifest, rootDir);
 
   // Set up build engine registry
