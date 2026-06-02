@@ -35,7 +35,10 @@ const CHECKSUM_FILE = '.octo-compose-checksum';
 
 /**
  * Computes a SHA-256 checksum from the combined content of all discovered compose files.
- * Used to detect changes and trigger re-merge only when source files are modified.
+ * Files are sorted by path to ensure deterministic output regardless of discovery order.
+ *
+ * @param discovered - Array of discovered compose file entries with path and content.
+ * @returns Hex-encoded SHA-256 hash string.
  */
 async function computeChecksum(discovered: DiscoveredCompose[]): Promise<string> {
   const hash = createHash('sha256');
@@ -46,6 +49,12 @@ async function computeChecksum(discovered: DiscoveredCompose[]): Promise<string>
   return hash.digest('hex');
 }
 
+/**
+ * Reads the previously stored checksum from disk.
+ *
+ * @param rootDir - Workspace root directory containing the checksum file.
+ * @returns The stored checksum string, or null if the file does not exist.
+ */
 async function readStoredChecksum(rootDir: string): Promise<string | null> {
   try {
     return (await readFile(join(rootDir, CHECKSUM_FILE), 'utf-8')).trim();
@@ -54,6 +63,12 @@ async function readStoredChecksum(rootDir: string): Promise<string | null> {
   }
 }
 
+/**
+ * Persists the current checksum to disk for future comparison.
+ *
+ * @param rootDir - Workspace root directory where the checksum file is stored.
+ * @param checksum - The SHA-256 hex string to persist.
+ */
 async function writeChecksum(rootDir: string, checksum: string): Promise<void> {
   await writeFile(join(rootDir, CHECKSUM_FILE), checksum, 'utf-8');
 }
@@ -61,8 +76,11 @@ async function writeChecksum(rootDir: string, checksum: string): Promise<void> {
 // --- Compose output ---
 
 /**
- * Writes the merged docker-compose.yml to the project root.
- * This file is the unified compose used by `docker compose` commands.
+ * Serializes a merged compose object to YAML and writes it to `docker-compose.yml` in the project root.
+ *
+ * @param merged - The unified compose structure (services, networks, volumes).
+ * @param rootDir - Workspace root directory where the file is written.
+ * @returns Absolute path to the written `docker-compose.yml`.
  */
 async function writeMergedCompose(merged: MergedCompose, rootDir: string): Promise<string> {
   const outputPath = join(rootDir, 'docker-compose.yml');
@@ -75,9 +93,11 @@ async function writeMergedCompose(merged: MergedCompose, rootDir: string): Promi
 // --- Healthcheck ---
 
 /**
- * Polls Docker inspect for a container's health status.
- * Returns true if healthy or if the container has no healthcheck defined.
- * Returns false if unhealthy or if the timeout is exceeded.
+ * Polls a container's health status via `docker inspect` until healthy, unhealthy, or timeout.
+ * Containers without a healthcheck defined are considered healthy immediately.
+ *
+ * @param containerName - Full Docker container name (e.g. "project-db-1").
+ * @returns `true` if container is healthy or has no healthcheck; `false` if unhealthy or timed out.
  */
 async function waitForHealthcheck(containerName: string): Promise<boolean> {
   const start = Date.now();
@@ -94,7 +114,11 @@ async function waitForHealthcheck(containerName: string): Promise<boolean> {
   return false;
 }
 
-/** Prints the last 20 log lines for a container to help diagnose failures. */
+/**
+ * Outputs the last 20 log lines of a container to stderr for debugging failed healthchecks.
+ *
+ * @param containerName - Full Docker container name to retrieve logs from.
+ */
 async function showContainerLogs(containerName: string): Promise<void> {
   const result = await run('docker', ['logs', '--tail', '20', containerName]);
   const output = result.stdout || result.stderr;
@@ -104,9 +128,17 @@ async function showContainerLogs(containerName: string): Promise<void> {
 // --- Resolve compose path ---
 
 /**
- * Resolves the compose file path to use.
- * - Single compose: uses it directly.
- * - Multiple composes: checks checksum. If changed (or first run), re-merges and writes docker-compose.yml.
+ * Determines which compose file to use for docker operations.
+ *
+ * - Single compose file: returns its path directly (no merge needed).
+ * - Multiple compose files: compares SHA-256 checksum against stored value.
+ *   If checksums match and the merged file exists, reuses it (cache hit).
+ *   If checksums differ or merged file is missing, triggers a re-merge.
+ *
+ * @param discovered - Array of discovered compose files from service directories.
+ * @param rootDir - Workspace root where merged output and checksum are stored.
+ * @param smartMerger - Smart merger instance for deduplication and LLM-assisted merge.
+ * @returns Absolute path to the compose file to use with `docker compose -f`.
  */
 async function resolveComposePath(
   discovered: DiscoveredCompose[],
@@ -127,7 +159,7 @@ async function resolveComposePath(
       logger.info('Compose files unchanged — using cached docker-compose.yml');
       return mergedPath;
     } catch {
-      // Merged file missing, re-merge below
+      // Merged file missing despite matching checksum — re-merge below
     }
   }
 
@@ -140,11 +172,26 @@ async function resolveComposePath(
 
 // --- Manager ---
 
+/**
+ * Creates an infrastructure manager that handles docker compose operations for the workspace.
+ *
+ * @param servicePaths - Array of absolute paths to service directories (each may contain a docker-compose.yml).
+ * @param rootDir - Workspace root directory for merged compose output and checksum storage.
+ * @returns An InfraManager instance with `up`, `down`, and `status` methods.
+ */
 export function createInfraManager(servicePaths: string[], rootDir: string): InfraManager {
   const aggregator = createComposeAggregator();
   const smartMerger = createComposeSmartMerger();
 
   return {
+    /**
+     * Starts containers defined in the workspace's compose file(s).
+     * Discovers compose files, resolves/merges if needed, runs `docker compose up -d`,
+     * and waits for all container healthchecks to pass.
+     *
+     * @param services - Optional list of service names to filter. If empty, starts all.
+     * @returns Result indicating success/failure with a descriptive message.
+     */
     async up(services?: string[]): Promise<InfraResult> {
       const paths = services && services.length > 0
         ? servicePaths.filter((p) => services.some((s) => p.endsWith(s)))
@@ -166,7 +213,6 @@ export function createInfraManager(servicePaths: string[], rootDir: string): Inf
         };
       }
 
-      // Wait for healthchecks on all running containers
       const psResult = await run('docker', ['compose', '-f', composePath, 'ps', '--format', '{{.Name}}']);
       const containerNames = psResult.stdout.trim().split('\n').filter(Boolean);
 
@@ -182,6 +228,13 @@ export function createInfraManager(servicePaths: string[], rootDir: string): Inf
       return { success: true, message: `All ${containerNames.length} container(s) are up and healthy.` };
     },
 
+    /**
+     * Stops all containers managed by the workspace's compose file.
+     * Optionally removes associated volumes.
+     *
+     * @param options - `{ volumes: true }` to also remove Docker volumes on teardown.
+     * @returns Result indicating success/failure with a descriptive message.
+     */
     async down(options: { volumes?: boolean }): Promise<InfraResult> {
       const discovered = aggregator.discover(servicePaths);
       if (discovered.length === 0) {
@@ -203,6 +256,12 @@ export function createInfraManager(servicePaths: string[], rootDir: string): Inf
       return { success: true, message: options.volumes ? 'All containers stopped and volumes removed.' : 'All containers stopped.' };
     },
 
+    /**
+     * Retrieves the current status of all containers managed by the workspace's compose file.
+     * Parses `docker compose ps --format json` output into structured ContainerStatus objects.
+     *
+     * @returns Array of container statuses. Empty array if no compose files exist or command fails.
+     */
     async status(): Promise<ContainerStatus[]> {
       const discovered = aggregator.discover(servicePaths);
       if (discovered.length === 0) return [];
