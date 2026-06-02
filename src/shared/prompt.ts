@@ -17,6 +17,47 @@ export function ask(message: string): Promise<string> {
 }
 
 /**
+ * Prompts the user for sensitive input (e.g. tokens, passwords).
+ * Input is not echoed to the terminal.
+ *
+ * @param message - The prompt message displayed to the user.
+ * @returns The trimmed secret string.
+ */
+export function askSecret(message: string): Promise<string> {
+  return new Promise((resolve) => {
+    process.stdout.write(message);
+
+    const stdin = process.stdin;
+    const wasRaw = stdin.isRaw;
+    if (stdin.isTTY) stdin.setRawMode(true);
+    stdin.resume();
+    stdin.setEncoding('utf-8');
+
+    let input = '';
+
+    const onData = (char: string) => {
+      if (char === '\n' || char === '\r') {
+        stdin.removeListener('data', onData);
+        if (stdin.isTTY) stdin.setRawMode(wasRaw ?? false);
+        stdin.pause();
+        process.stdout.write('\n');
+        resolve(input.trim());
+      } else if (char === '\u0003') {
+        // Ctrl+C
+        process.exit(130);
+      } else if (char === '\u007F' || char === '\b') {
+        // Backspace
+        input = input.slice(0, -1);
+      } else {
+        input += char;
+      }
+    };
+
+    stdin.on('data', onData);
+  });
+}
+
+/**
  * Prompts the user with a yes/no question via stdin.
  * Accepts 'y', 'Y', 's', 'S' as affirmative responses.
  *

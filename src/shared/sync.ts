@@ -25,7 +25,7 @@ export async function ensureRepositories(manifest: OctoManifest, rootDir: string
 
   if (pending.length === 0) return 0;
 
-  logger.info(`${pending.length} repository(ies) to clone.`);
+  logger.info(`${pending.length} repository(ies) to clone.\n`);
 
   // Acquire token once for all clones
   const token = await acquireGitToken();

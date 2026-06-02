@@ -1,17 +1,17 @@
-import { ask } from './prompt.js';
+import { askSecret } from './prompt.js';
 
 let cachedToken: string | undefined;
 
 /**
  * Acquires a GitHub Personal Access Token for git HTTPS operations.
- * Prompts the user once and caches in memory for the process lifetime.
- * The token is never persisted to disk.
+ * Prompts the user once (input hidden) and caches in memory for the process lifetime.
+ * The token is never persisted to disk or echoed to the terminal.
  *
  * @returns The PAT string, or undefined if the user provides empty input (skip).
  */
 export async function acquireGitToken(): Promise<string | undefined> {
   if (cachedToken) return cachedToken;
-  const input = await ask('GitHub token (PAT): ');
+  const input = await askSecret('GitHub token (PAT): ');
   cachedToken = input || undefined;
   return cachedToken;
 }
