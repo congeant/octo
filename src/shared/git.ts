@@ -46,22 +46,24 @@ export function resolveGitUrl(shorthand: string): string {
 
 /**
  * Clones a git repository into the target directory.
- * Inherits stdio to allow interactive auth (password/2FA prompts).
+ * Supports optional env vars for auth injection (GIT_ASKPASS).
  *
  * @param url - Full git URL to clone.
  * @param targetDir - Absolute path where the repo will be cloned.
+ * @param env - Optional environment variables (e.g. GIT_ASKPASS for token auth).
  * @throws OctoError if clone exits with non-zero code.
  */
-export async function cloneRepository(url: string, targetDir: string): Promise<void> {
+export async function cloneRepository(url: string, targetDir: string, env?: Record<string, string>): Promise<void> {
   logger.info(`Cloning ${url}...`);
 
   const result = await run('git', ['clone', url, targetDir], {
     timeout: 120_000,
-    interactive: true,
+    interactive: !env,
+    env,
   });
 
   if (result.exitCode !== 0) {
-    throw new OctoError('Failed to clone repository.');
+    throw new OctoError(`Failed to clone repository: ${result.stderr.trim() || 'unknown error'}`);
   }
 
   logger.info(`Repository cloned to ./${basename(targetDir)}`);

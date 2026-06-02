@@ -2,12 +2,13 @@ import { existsSync } from 'node:fs';
 import { resolve } from 'node:path';
 import { logger } from './logger.js';
 import { isRemoteRepo, resolveGitUrl, extractRepoName, cloneRepository } from './git.js';
+import { acquireGitToken, cleanupGitAuth } from './git-auth.js';
 import type { OctoManifest, ServiceEntry, PackageEntry } from '../manifest/manifest-schema.js';
 
 /**
  * Ensures all repositories declared in the manifest are present locally.
+ * Prompts for a GitHub token once at the start, then reuses it for all clones.
  * Entries matching the org/repo pattern are treated as remote GitHub repositories.
- * Missing repos are cloned in sequence without user interaction (uses credential cache).
  *
  * @param manifest - The parsed octo.yaml manifest.
  * @param rootDir - Workspace root directory where repos are cloned.
@@ -15,29 +16,35 @@ import type { OctoManifest, ServiceEntry, PackageEntry } from '../manifest/manif
  */
 export async function ensureRepositories(manifest: OctoManifest, rootDir: string): Promise<number> {
   const entries = collectEntries(manifest);
-  let cloned = 0;
-
-  for (const entry of entries) {
-    const { name, path: explicitPath } = entry;
-
-    // Only process remote repos (org/repo format)
-    if (!isRemoteRepo(name)) continue;
-
+  const pending = entries.filter(({ name, path: explicitPath }) => {
+    if (!isRemoteRepo(name)) return false;
     const repoName = extractRepoName(name);
     const targetDir = resolve(rootDir, explicitPath ?? repoName);
+    return !existsSync(targetDir);
+  });
 
-    if (existsSync(targetDir)) continue;
+  if (pending.length === 0) return 0;
 
-    const url = resolveGitUrl(name);
-    await cloneRepository(url, targetDir);
-    cloned++;
-  }
+  logger.info(`${pending.length} repository(ies) to clone.`);
 
-  if (cloned > 0) {
+  // Acquire token once for all clones
+  const env = await acquireGitToken();
+
+  try {
+    let cloned = 0;
+    for (const { name, path: explicitPath } of pending) {
+      const repoName = extractRepoName(name);
+      const targetDir = resolve(rootDir, explicitPath ?? repoName);
+      const url = resolveGitUrl(name);
+      await cloneRepository(url, targetDir, env);
+      cloned++;
+    }
+
     logger.info(`Synced ${cloned} repository(ies).`);
+    return cloned;
+  } finally {
+    cleanupGitAuth();
   }
-
-  return cloned;
 }
 
 /**

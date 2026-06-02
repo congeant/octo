@@ -8,10 +8,10 @@ import { logger } from '../shared/logger.js';
  */
 export async function configGitCacheCommand(value?: string): Promise<void> {
   const helper = value || 'cache';
-  const result = await run('git', ['config', '--global', 'credential.helper', helper]);
+  const result = await run('git', ['config', '--local', 'credential.helper', helper]);
   if (result.exitCode !== 0) {
     logger.error(`Failed to set credential.helper: ${result.stderr.trim()}`);
     return;
   }
-  logger.info(`Git credential.helper set to "${helper}" (global).`);
+  logger.info(`Git credential.helper set to "${helper}".`);
 }
