@@ -1,4 +1,4 @@
-import { readFileSync, writeFileSync, existsSync } from 'node:fs';
+import { readJsonSync, writeJsonSync, pathExistsSync } from 'fs-extra';
 import { join } from 'node:path';
 import { homedir } from 'node:os';
 
@@ -22,9 +22,9 @@ export interface OctoConfig {
  * @returns The parsed configuration.
  */
 export function loadConfig(): OctoConfig {
-  if (!existsSync(CONFIG_FILE)) return {};
+  if (!pathExistsSync(CONFIG_FILE)) return {};
   try {
-    return JSON.parse(readFileSync(CONFIG_FILE, 'utf-8')) as OctoConfig;
+    return readJsonSync(CONFIG_FILE) as OctoConfig;
   } catch {
     return {};
   }
@@ -39,7 +39,7 @@ export function loadConfig(): OctoConfig {
 export function saveConfig(partial: Partial<OctoConfig>): void {
   const existing = loadConfig();
   const merged = { ...existing, ...partial };
-  writeFileSync(CONFIG_FILE, JSON.stringify(merged, null, 2), 'utf-8');
+  writeJsonSync(CONFIG_FILE, merged, { spaces: 2 });
 }
 
 /**

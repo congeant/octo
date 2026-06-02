@@ -1,4 +1,4 @@
-import { existsSync } from 'node:fs';
+import { pathExistsSync } from 'fs-extra';
 import { resolve } from 'node:path';
 import { logger } from './logger.js';
 import { isRemoteRepo, resolveGitUrl, extractRepoName, cloneRepository } from './git.js';
@@ -20,7 +20,7 @@ export async function ensureRepositories(manifest: OctoManifest, rootDir: string
     if (!isRemoteRepo(name)) return false;
     const repoName = extractRepoName(name);
     const targetDir = resolve(rootDir, explicitPath ?? repoName);
-    return !existsSync(targetDir);
+    return !pathExistsSync(targetDir);
   });
 
   if (pending.length === 0) return 0;

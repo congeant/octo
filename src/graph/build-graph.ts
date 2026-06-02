@@ -1,39 +1,40 @@
-import { readFileSync, readdirSync, statSync, existsSync } from 'node:fs';
+import { pathExistsSync, readdirSync, statSync } from 'fs-extra';
 import { join, resolve } from 'node:path';
 import { DependencyGraph, type GraphNode } from './dependency-graph.js';
 import { isRemoteRepo, extractRepoName } from '../shared/git.js';
+import { NodePackageReader } from '../manifest/adapters/node-package-reader.adapter.js';
+import type { PackageReader } from '../manifest/ports/package-reader.port.js';
 import type { OctoManifest, ServiceEntry, PackageEntry } from '../manifest/manifest-schema.js';
 
-interface PackageJson {
-  name?: string;
-  dependencies?: Record<string, string>;
-  devDependencies?: Record<string, string>;
-}
-
-/** Extract the name and optional path override from a manifest entry */
+/**
+ * Extracts the name and optional path override from a manifest entry.
+ *
+ * @param entry - A service or package entry (string or object with path config).
+ * @returns Resolved name and optional explicit path.
+ */
 function resolveEntry(entry: ServiceEntry | PackageEntry): { name: string; path?: string } {
   if (typeof entry === 'string') return { name: entry };
-  // Object format: { "auth": { path?: "./custom" } }
   const key = Object.keys(entry)[0];
   const config = (entry as Record<string, { path?: string }>)[key];
   return { name: key, path: config?.path };
 }
 
 /**
- * Recursively search for a directory containing a package.json whose `name` matches `targetName`.
- * Searches up to depth 3 from rootDir.
+ * Recursively searches for a directory whose package.json `name` matches targetName.
+ * Skips node_modules, dist, and dot-prefixed directories. Max depth: 3.
+ *
+ * @param rootDir - Starting directory for the search.
+ * @param targetName - The package name to find.
+ * @param reader - PackageReader instance for reading package metadata.
+ * @param maxDepth - Maximum recursion depth.
+ * @returns Absolute path to the matching directory, or undefined.
  */
-function findPackageDir(rootDir: string, targetName: string, maxDepth = 3): string | undefined {
+function findPackageDir(rootDir: string, targetName: string, reader: PackageReader, maxDepth = 3): string | undefined {
   function search(dir: string, depth: number): string | undefined {
     if (depth > maxDepth) return undefined;
 
-    const pkgPath = join(dir, 'package.json');
-    if (existsSync(pkgPath)) {
-      try {
-        const pkg = JSON.parse(readFileSync(pkgPath, 'utf-8')) as PackageJson;
-        if (pkg.name === targetName) return dir;
-      } catch { /* skip invalid json */ }
-    }
+    const pkg = reader.read(dir);
+    if (pkg?.name === targetName) return dir;
 
     let entries: string[];
     try {
@@ -58,26 +59,24 @@ function findPackageDir(rootDir: string, targetName: string, maxDepth = 3): stri
   return search(rootDir, 0);
 }
 
-/** Read a package.json from a directory, returning undefined if not found */
-function readPackageJson(dir: string): PackageJson | undefined {
-  const pkgPath = join(dir, 'package.json');
-  if (!existsSync(pkgPath)) return undefined;
-  try {
-    return JSON.parse(readFileSync(pkgPath, 'utf-8')) as PackageJson;
-  } catch {
-    return undefined;
-  }
-}
-
 /**
- * Build a DependencyGraph from an OctoManifest.
- * Reads each service/package's package.json and adds edges only for internal dependencies.
+ * Builds a DependencyGraph from an OctoManifest.
+ * Resolves project paths, reads package metadata via the PackageReader port,
+ * and adds edges only for dependencies that reference other workspace projects.
+ *
+ * @param manifest - The parsed octo.yaml manifest.
+ * @param rootDir - Workspace root directory.
+ * @param reader - Optional PackageReader implementation (defaults to NodePackageReader).
+ * @returns A populated DependencyGraph with nodes and internal dependency edges.
  */
-export function buildGraphFromManifest(manifest: OctoManifest, rootDir: string): DependencyGraph {
+export function buildGraphFromManifest(
+  manifest: OctoManifest,
+  rootDir: string,
+  reader: PackageReader = new NodePackageReader(),
+): DependencyGraph {
   const graph = new DependencyGraph();
   const resolvedPaths = new Map<string, string>();
 
-  // Collect all declared names (services + packages)
   const allEntries: Array<{ name: string; path?: string; type: 'service' | 'package' }> = [];
 
   for (const entry of manifest.services) {
@@ -89,32 +88,27 @@ export function buildGraphFromManifest(manifest: OctoManifest, rootDir: string):
     allEntries.push({ ...resolved, type: 'package' });
   }
 
-  // Resolve paths and add nodes
   for (const entry of allEntries) {
     let dir: string | undefined;
 
     if (entry.path) {
       dir = resolve(rootDir, entry.path);
     } else if (isRemoteRepo(entry.name)) {
-      // org/repo format — directory is the repo name
       dir = resolve(rootDir, extractRepoName(entry.name));
     } else {
-      dir = findPackageDir(rootDir, entry.name);
+      dir = findPackageDir(rootDir, entry.name, reader);
     }
 
-    if (!dir || !existsSync(dir)) continue;
+    if (!dir || !pathExistsSync(dir)) continue;
 
     resolvedPaths.set(entry.name, dir);
-    const node: GraphNode = { name: entry.name, type: entry.type, path: dir };
-    graph.addNode(node);
+    graph.addNode({ name: entry.name, type: entry.type, path: dir });
   }
 
-  // Set of all internal package names for quick lookup
   const internalNames = new Set(resolvedPaths.keys());
 
-  // Add edges based on package.json dependencies
   for (const [name, dir] of resolvedPaths) {
-    const pkg = readPackageJson(dir);
+    const pkg = reader.read(dir);
     if (!pkg) continue;
 
     const allDeps = { ...pkg.dependencies, ...pkg.devDependencies };

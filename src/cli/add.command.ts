@@ -1,4 +1,4 @@
-import { existsSync, readFileSync } from 'node:fs';
+import { pathExistsSync, readJsonSync } from 'fs-extra';
 import { resolve, join } from 'node:path';
 import { logger } from '../shared/logger.js';
 import { OctoError } from '../shared/errors.js';
@@ -18,9 +18,9 @@ export interface AddCommandOptions {
  */
 function getProjectDeps(projectDir: string): string[] {
   const pkgPath = join(projectDir, 'package.json');
-  if (!existsSync(pkgPath)) return [];
+  if (!pathExistsSync(pkgPath)) return [];
   try {
-    const pkg = JSON.parse(readFileSync(pkgPath, 'utf-8'));
+    const pkg = readJsonSync(pkgPath);
     return Object.keys({ ...pkg.dependencies, ...pkg.devDependencies });
   } catch {
     return [];
@@ -55,7 +55,7 @@ function reportDependencies(
   const dependents: string[] = [];
   for (const name of existingEntries) {
     const dir = resolve(rootDir, extractRepoName(name));
-    if (!existsSync(dir)) continue;
+    if (!pathExistsSync(dir)) continue;
     const deps = getProjectDeps(dir);
     if (deps.includes(newProjectName)) {
       dependents.push(name);
@@ -78,7 +78,7 @@ export async function addCommand(repoUrl: string, opts: AddCommandOptions): Prom
   const dirName = opts.name || extractRepoName(repoUrl);
   const targetDir = resolve(rootDir, dirName);
 
-  if (existsSync(targetDir)) {
+  if (pathExistsSync(targetDir)) {
     throw new OctoError(`Directory already exists: ${dirName}. Use --name to specify another name.`);
   }
 

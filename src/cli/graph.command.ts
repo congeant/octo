@@ -1,11 +1,12 @@
 import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
+import treeify from 'treeify';
 import { parseManifest } from '../manifest/manifest-parser.js';
 import { buildGraphFromManifest } from '../graph/build-graph.js';
 import { OctoError } from '../shared/errors.js';
 
 /**
- * `octo graph` — displays the dependency graph as a visual tree in the terminal.
+ * `octo graph` — displays the dependency graph as a tree in the terminal using treeify.
  */
 export async function graphCommand(): Promise<void> {
   const cwd = process.cwd();
@@ -27,30 +28,29 @@ export async function graphCommand(): Promise<void> {
   if (!sortResult.ok) throw sortResult.error;
 
   const allNames = sortResult.value;
-  const totalNodes = allNames.length;
   const totalEdges = allNames.reduce((sum, n) => sum + graph.getDependencies(n).length, 0);
 
-  console.log(`\n  Dependency Graph (${totalNodes} nodes, ${totalEdges} edges)\n`);
+  // Build treeify-compatible object
+  const tree: Record<string, any> = {};
 
   for (const name of allNames) {
     const deps = graph.getDependencies(name);
-    const dependents = graph.getDependents(name);
     const node = graph.getNode(name);
-    const type = node?.type === 'service' ? '●' : '○';
+    const icon = node?.type === 'service' ? '●' : '○';
+    const label = `${icon} ${name}`;
 
-    if (deps.length === 0 && dependents.length === 0) {
-      console.log(`  ${type} ${name}`);
-      continue;
-    }
-
-    console.log(`  ${type} ${name}`);
-
-    for (let i = 0; i < deps.length; i++) {
-      const isLast = i === deps.length - 1;
-      const connector = isLast ? '└──' : '├──';
-      console.log(`    ${connector} → ${deps[i]}`);
+    if (deps.length === 0) {
+      tree[label] = null;
+    } else {
+      const children: Record<string, null> = {};
+      for (const dep of deps) {
+        children[`→ ${dep}`] = null;
+      }
+      tree[label] = children;
     }
   }
 
-  console.log(`\n  ● service  ○ package  → depends on\n`);
+  console.log(`\n  Dependency Graph (${allNames.length} nodes, ${totalEdges} edges)\n`);
+  console.log(treeify.asTree(tree, true, true));
+  console.log('  ● service  ○ package  → depends on\n');
 }
