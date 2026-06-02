@@ -1,17 +1,40 @@
+import { generateText } from 'ai';
+import { createOpenAI } from '@ai-sdk/openai';
+import { createGoogleGenerativeAI } from '@ai-sdk/google';
+import { createAnthropic } from '@ai-sdk/anthropic';
 import { logger } from './logger.js';
-import { loadConfig } from './config.js';
+import { loadConfig, type LlmConfig } from './config.js';
 
-interface ChatMessage {
-  role: 'system' | 'user' | 'assistant';
-  content: string;
-}
-
-interface ChatResponse {
-  choices: Array<{ message: { content: string } }>;
+/**
+ * Resolves the AI SDK language model from the stored config.
+ * Supports openai, gemini, groq, anthropic, and any OpenAI-compatible custom endpoint.
+ *
+ * @param config - The LLM configuration with provider, baseUrl, model, and apiKey.
+ * @returns An AI SDK language model instance.
+ */
+function resolveModel(config: LlmConfig) {
+  switch (config.provider) {
+    case 'google':
+    case 'gemini': {
+      const google = createGoogleGenerativeAI({ apiKey: config.apiKey });
+      return google(config.model);
+    }
+    case 'anthropic': {
+      const anthropic = createAnthropic({ apiKey: config.apiKey });
+      return anthropic(config.model);
+    }
+    case 'openai':
+    case 'groq':
+    case 'custom':
+    default: {
+      const openai = createOpenAI({ apiKey: config.apiKey, baseURL: config.baseUrl });
+      return openai(config.model);
+    }
+  }
 }
 
 /**
- * Sends a prompt to the configured LLM provider via OpenAI-compatible API.
+ * Generates text from a prompt using the configured LLM provider.
  * Returns null if no LLM is configured or the request fails.
  *
  * @param prompt - The user prompt to send.
@@ -20,35 +43,20 @@ interface ChatResponse {
  */
 export async function generate(prompt: string, maxTokens = 512): Promise<string | null> {
   const config = loadConfig();
-  if (!config.llm?.apiKey || !config.llm?.baseUrl) return null;
-
-  const messages: ChatMessage[] = [{ role: 'user', content: prompt }];
+  if (!config.llm?.apiKey) return null;
 
   try {
-    const response = await fetch(`${config.llm.baseUrl}/chat/completions`, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'Authorization': `Bearer ${config.llm.apiKey}`,
-      },
-      body: JSON.stringify({
-        model: config.llm.model,
-        messages,
-        max_tokens: maxTokens,
-        temperature: 0,
-      }),
+    const model = resolveModel(config.llm);
+    const { text } = await generateText({
+      model,
+      prompt,
+      maxTokens,
+      temperature: 0,
     });
-
-    if (!response.ok) {
-      logger.warn(`LLM request failed (${response.status}). Using deterministic fallback.`);
-      return null;
-    }
-
-    const data = await response.json() as ChatResponse;
-    return data.choices?.[0]?.message?.content?.trim() ?? null;
+    return text?.trim() || null;
   } catch (err) {
     const msg = err instanceof Error ? err.message : String(err);
-    logger.warn(`LLM unavailable: ${msg}. Using deterministic fallback.`);
+    logger.warn(`LLM request failed: ${msg}. Using deterministic fallback.`);
     return null;
   }
 }
@@ -76,11 +84,11 @@ export async function generateJSON<T = unknown>(prompt: string, maxTokens = 1024
 }
 
 /**
- * Checks if an LLM provider is configured and reachable.
+ * Checks if an LLM provider is configured.
  *
- * @returns true if LLM config exists with apiKey and baseUrl.
+ * @returns true if LLM config exists with a valid apiKey.
  */
 export function isAvailable(): boolean {
   const config = loadConfig();
-  return !!(config.llm?.apiKey && config.llm?.baseUrl);
+  return !!config.llm?.apiKey;
 }
