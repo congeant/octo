@@ -11,7 +11,7 @@ const program = new Command();
 program
   .name('octo')
   .description('Monorepo build orchestration, versioning, and infrastructure CLI')
-  .version('0.5.2');
+  .version('0.5.3');
 
 program
   .command('init')
@@ -84,6 +84,15 @@ program
   .action(async (repoUrl, opts) => {
     const { addCommand } = await import('./add.command.js');
     await addCommand(repoUrl, opts);
+  });
+
+program
+  .command('config')
+  .description('Configure octo and git settings')
+  .option('--credential-cache <value>', 'Set git credential.helper (e.g. "cache --timeout=3600", "store")')
+  .action(async (opts) => {
+    const { configCommand } = await import('./config.command.js');
+    await configCommand(opts);
   });
 
 program.parse();
