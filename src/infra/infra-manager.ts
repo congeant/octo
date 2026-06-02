@@ -164,7 +164,7 @@ async function resolveComposePath(
   }
 
   logger.info(`Found ${discovered.length} compose files with changes — merging into unified docker-compose.yml`);
-  const merged = await smartMerger.deduplicate(discovered);
+  const merged = await smartMerger.deduplicate(discovered, rootDir);
   const outputPath = await writeMergedCompose(merged, rootDir);
   await writeChecksum(rootDir, currentChecksum);
   return outputPath;

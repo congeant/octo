@@ -1,5 +1,5 @@
 import { readFileSync, existsSync } from 'node:fs';
-import { join } from 'node:path';
+import { join, dirname, relative } from 'node:path';
 import { parse } from 'yaml';
 
 /** A discovered docker-compose.yml from a service directory */
@@ -39,7 +39,33 @@ export interface MergeResult {
 
 export interface ComposeAggregator {
   discover(servicePaths: string[]): DiscoveredCompose[];
-  merge(composes: DiscoveredCompose[]): MergeResult;
+  merge(composes: DiscoveredCompose[], rootDir: string): MergeResult;
+}
+
+/**
+ * Rewrites the `build` field of a service definition to be relative to rootDir.
+ * Handles both string format (`build: .`) and object format (`build: { context: ./src }`).
+ *
+ * @param def - The service definition object.
+ * @param composeDir - The directory containing the original compose file.
+ * @param rootDir - The workspace root where the merged compose will be written.
+ * @returns The service definition with corrected build paths.
+ */
+function rewriteBuildPath(def: any, composeDir: string, rootDir: string): any {
+  if (!def?.build) return def;
+
+  const rewritten = { ...def };
+
+  if (typeof rewritten.build === 'string') {
+    const absolutePath = join(composeDir, rewritten.build);
+    rewritten.build = `./${relative(rootDir, absolutePath)}`;
+  } else if (typeof rewritten.build === 'object') {
+    const context = rewritten.build.context ?? '.';
+    const absolutePath = join(composeDir, context);
+    rewritten.build = { ...rewritten.build, context: `./${relative(rootDir, absolutePath)}` };
+  }
+
+  return rewritten;
 }
 
 /** Extract host ports from a compose service ports definition */
@@ -71,11 +97,10 @@ export function createComposeAggregator(): ComposeAggregator {
       return results;
     },
 
-    merge(composes: DiscoveredCompose[]): MergeResult {
+    merge(composes: DiscoveredCompose[], rootDir: string): MergeResult {
       const merged: MergedCompose = { services: {}, networks: {}, volumes: {} };
       const conflicts: ComposeConflict[] = [];
 
-      // Track origins for conflict detection
       const serviceOrigins = new Map<string, string[]>();
       const portOrigins = new Map<string, string[]>();
 
@@ -83,11 +108,15 @@ export function createComposeAggregator(): ComposeAggregator {
         const { content, path: sourcePath } = compose;
         if (!content) continue;
 
+        const composeDir = dirname(sourcePath);
+
         // Merge services
         if (content.services) {
-          for (const [name, def] of Object.entries(content.services)) {
+          for (const [name, rawDef] of Object.entries(content.services)) {
             if (!serviceOrigins.has(name)) serviceOrigins.set(name, []);
             serviceOrigins.get(name)!.push(sourcePath);
+
+            const def = rewriteBuildPath(rawDef, composeDir, rootDir);
 
             // Detect port conflicts
             if (def?.ports && Array.isArray(def.ports)) {

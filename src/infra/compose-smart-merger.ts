@@ -11,7 +11,7 @@ const MergedComposeSchema = z.object({
 });
 
 export interface ComposeSmartMerger {
-  deduplicate(composes: DiscoveredCompose[]): Promise<MergedCompose>;
+  deduplicate(composes: DiscoveredCompose[], rootDir: string): Promise<MergedCompose>;
 }
 
 /**
@@ -53,7 +53,7 @@ export function createComposeSmartMerger(): ComposeSmartMerger {
   const aggregator = createComposeAggregator();
 
   return {
-    async deduplicate(composes: DiscoveredCompose[]): Promise<MergedCompose> {
+    async deduplicate(composes: DiscoveredCompose[], rootDir: string): Promise<MergedCompose> {
       if (composes.length === 0) {
         return { services: {}, networks: {}, volumes: {} };
       }
@@ -82,7 +82,7 @@ export function createComposeSmartMerger(): ComposeSmartMerger {
       }
 
       // Fallback: deterministic merge
-      const { merged } = aggregator.merge(composes);
+      const { merged } = aggregator.merge(composes, rootDir);
       return merged;
     },
   };
