@@ -25,7 +25,7 @@ export async function downCommand(opts: { volumes?: boolean }): Promise<void> {
     .map((name) => graph.getNode(name)?.path)
     .filter((p): p is string => !!p);
 
-  const manager = createInfraManager(servicePaths);
+  const manager = createInfraManager(servicePaths, rootDir);
   const result = await manager.down({ volumes: opts.volumes });
 
   if (!result.success) {

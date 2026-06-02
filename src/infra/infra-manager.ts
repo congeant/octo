@@ -1,6 +1,5 @@
 import { writeFile } from 'node:fs/promises';
 import { join } from 'node:path';
-import { tmpdir } from 'node:os';
 import { stringify } from 'yaml';
 import { run } from '../shared/process-runner.js';
 import { logger } from '../shared/logger.js';
@@ -31,12 +30,12 @@ export interface InfraManager {
 const HEALTHCHECK_TIMEOUT_MS = 60_000;
 const HEALTHCHECK_POLL_MS = 2_000;
 
-/** Write merged compose to a temp file and return its path */
-async function writeTempCompose(merged: MergedCompose): Promise<string> {
-  const tempPath = join(tmpdir(), `octo-compose-${Date.now()}.yml`);
+/** Write merged compose to the project root as docker-compose.yml */
+async function writeMergedCompose(merged: MergedCompose, rootDir: string): Promise<string> {
+  const outputPath = join(rootDir, 'docker-compose.yml');
   const content = stringify(merged);
-  await writeFile(tempPath, content, 'utf-8');
-  return tempPath;
+  await writeFile(outputPath, content, 'utf-8');
+  return outputPath;
 }
 
 /** Poll healthcheck for a container, returns true if healthy within timeout */
@@ -61,7 +60,7 @@ async function showContainerLogs(containerName: string): Promise<void> {
   if (output) logger.error(`Last 20 lines of log (${containerName}):\n${output}`);
 }
 
-export function createInfraManager(servicePaths: string[]): InfraManager {
+export function createInfraManager(servicePaths: string[], rootDir: string): InfraManager {
   const aggregator = createComposeAggregator();
   const smartMerger = createComposeSmartMerger();
   let composePath: string | undefined;
@@ -74,32 +73,37 @@ export function createInfraManager(servicePaths: string[]): InfraManager {
 
       const discovered = aggregator.discover(paths);
       if (discovered.length === 0) {
-        return { success: true, message: 'Nenhum docker-compose.yml encontrado.' };
+        return { success: true, message: 'No docker-compose.yml found.' };
       }
 
-      logger.info(`Discovered ${discovered.length} compose file(s). Merging...`);
-      const merged = await smartMerger.deduplicate(discovered);
-      composePath = await writeTempCompose(merged);
+      if (discovered.length === 1) {
+        // Single compose — use directly, no merge needed
+        composePath = discovered[0].path;
+      } else {
+        logger.info(`Discovered ${discovered.length} compose file(s). Merging...`);
+        const merged = await smartMerger.deduplicate(discovered);
+        composePath = await writeMergedCompose(merged, rootDir);
+      }
 
       logger.info('Starting containers...');
       const result = await run('docker', ['compose', '-f', composePath, 'up', '-d']);
       if (result.exitCode !== 0) {
-        return { success: false, message: `docker compose up falhou: ${result.stderr}` };
+        return { success: false, message: `docker compose up failed: ${result.stderr}` };
       }
 
-      // Wait for healthchecks
-      const serviceNames = Object.keys(merged.services);
+      // Wait for healthchecks on running services
+      const psResult = await run('docker', ['compose', '-f', composePath, 'ps', '--format', '{{.Service}}']);
+      const serviceNames = psResult.stdout.trim().split('\n').filter(Boolean);
       for (const svc of serviceNames) {
         const healthy = await waitForHealthcheck(svc);
         if (!healthy) {
           logger.error(`Healthcheck timeout for container "${svc}".`);
           await showContainerLogs(svc);
-          // Stop dependents but don't tear down everything
           return { success: false, message: `Healthcheck timeout: ${svc}` };
         }
       }
 
-      return { success: true, message: `${serviceNames.length} container(s) iniciado(s).` };
+      return { success: true, message: `${serviceNames.length} container(s) started.` };
     },
 
     async down(options: { volumes?: boolean }): Promise<InfraResult> {
@@ -107,10 +111,14 @@ export function createInfraManager(servicePaths: string[]): InfraManager {
       if (!composePath) {
         const discovered = aggregator.discover(servicePaths);
         if (discovered.length === 0) {
-          return { success: true, message: 'Nenhum container para parar.' };
+          return { success: true, message: 'No containers to stop.' };
         }
-        const merged = await smartMerger.deduplicate(discovered);
-        composePath = await writeTempCompose(merged);
+        if (discovered.length === 1) {
+          composePath = discovered[0].path;
+        } else {
+          const merged = await smartMerger.deduplicate(discovered);
+          composePath = await writeMergedCompose(merged, rootDir);
+        }
       }
 
       const args = ['compose', '-f', composePath, 'down'];
@@ -118,18 +126,22 @@ export function createInfraManager(servicePaths: string[]): InfraManager {
 
       const result = await run('docker', args);
       if (result.exitCode !== 0) {
-        return { success: false, message: `docker compose down falhou: ${result.stderr}` };
+        return { success: false, message: `docker compose down failed: ${result.stderr}` };
       }
 
-      return { success: true, message: 'Containers parados.' };
+      return { success: true, message: 'Containers stopped.' };
     },
 
     async status(): Promise<ContainerStatus[]> {
       if (!composePath) {
         const discovered = aggregator.discover(servicePaths);
         if (discovered.length === 0) return [];
-        const merged = await smartMerger.deduplicate(discovered);
-        composePath = await writeTempCompose(merged);
+        if (discovered.length === 1) {
+          composePath = discovered[0].path;
+        } else {
+          const merged = await smartMerger.deduplicate(discovered);
+          composePath = await writeMergedCompose(merged, rootDir);
+        }
       }
 
       const result = await run('docker', ['compose', '-f', composePath, 'ps', '--format', 'json']);

@@ -25,7 +25,7 @@ export async function statusCommand(): Promise<void> {
     .map((name) => graph.getNode(name)?.path)
     .filter((p): p is string => !!p);
 
-  const manager = createInfraManager(servicePaths);
+  const manager = createInfraManager(servicePaths, rootDir);
   const containers = await manager.status();
 
   if (containers.length === 0) {

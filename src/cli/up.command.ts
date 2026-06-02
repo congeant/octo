@@ -41,7 +41,7 @@ export async function upCommand(service?: string): Promise<void> {
     .map((name) => graph.getNode(name)?.path)
     .filter((p): p is string => !!p);
 
-  const manager = createInfraManager(servicePaths);
+  const manager = createInfraManager(servicePaths, rootDir);
   const result = await manager.up(targetServices);
 
   if (!result.success) {
