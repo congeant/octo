@@ -1,5 +1,5 @@
-import { existsSync } from 'node:fs';
-import { resolve } from 'node:path';
+import { existsSync, readFileSync } from 'node:fs';
+import { resolve, join } from 'node:path';
 import { logger } from '../shared/logger.js';
 import { OctoError } from '../shared/errors.js';
 import { extractRepoName, cloneRepository } from '../shared/git.js';
@@ -11,10 +11,67 @@ export interface AddCommandOptions {
 }
 
 /**
+ * Reads dependencies from a project's package.json.
+ *
+ * @param projectDir - Absolute path to the project directory.
+ * @returns Combined dependency names from dependencies and devDependencies.
+ */
+function getProjectDeps(projectDir: string): string[] {
+  const pkgPath = join(projectDir, 'package.json');
+  if (!existsSync(pkgPath)) return [];
+  try {
+    const pkg = JSON.parse(readFileSync(pkgPath, 'utf-8'));
+    return Object.keys({ ...pkg.dependencies, ...pkg.devDependencies });
+  } catch {
+    return [];
+  }
+}
+
+/**
+ * Detects dependency relationships between the new project and existing workspace projects.
+ * Reports which existing projects depend on the new one, and which the new one depends on.
+ *
+ * @param newProjectName - The package name of the newly added project.
+ * @param newProjectDir - The directory of the newly cloned project.
+ * @param existingEntries - Names of projects already in the manifest.
+ * @param rootDir - Workspace root directory.
+ */
+function reportDependencies(
+  newProjectName: string,
+  newProjectDir: string,
+  existingEntries: string[],
+  rootDir: string,
+): void {
+  const newDeps = getProjectDeps(newProjectDir);
+  const existingSet = new Set(existingEntries);
+
+  // What does the new project depend on that's already in the workspace?
+  const depsInWorkspace = newDeps.filter((d) => existingSet.has(d));
+  if (depsInWorkspace.length > 0) {
+    logger.info(`  → depends on: ${depsInWorkspace.join(', ')}`);
+  }
+
+  // Which existing projects depend on the new one?
+  const dependents: string[] = [];
+  for (const name of existingEntries) {
+    const dir = resolve(rootDir, extractRepoName(name));
+    if (!existsSync(dir)) continue;
+    const deps = getProjectDeps(dir);
+    if (deps.includes(newProjectName)) {
+      dependents.push(name);
+    }
+  }
+
+  if (dependents.length > 0) {
+    logger.info(`  → depended on by: ${dependents.join(', ')}`);
+  }
+}
+
+/**
  * octo add <repo-url>
  *
  * Clones a repository and registers it in octo.yaml.
- * The directory is resolved automatically from the repo name (or --name override).
+ * After registration, reports dependency relationships with existing workspace projects.
  */
 export async function addCommand(repoUrl: string, opts: AddCommandOptions): Promise<void> {
   const rootDir = process.cwd();
@@ -33,6 +90,12 @@ export async function addCommand(repoUrl: string, opts: AddCommandOptions): Prom
   const manifestPath = resolve(rootDir, 'octo.yaml');
   const { manifest, originalContent } = loadOrCreateManifest(manifestPath);
 
+  // Collect existing entries before adding
+  const existingEntries = [
+    ...manifest.services.map((e) => typeof e === 'string' ? e : Object.keys(e)[0]),
+    ...(manifest.packages ?? []).map((e) => typeof e === 'string' ? e : Object.keys(e)[0]),
+  ];
+
   const added = addEntry(manifest, projectName, dirName, type);
 
   if (!added) {
@@ -42,4 +105,6 @@ export async function addCommand(repoUrl: string, opts: AddCommandOptions): Prom
 
   saveManifest(manifestPath, manifest, originalContent);
   logger.info(`Project "${projectName}" added as ${type} in octo.yaml.`);
+
+  reportDependencies(projectName, targetDir, existingEntries, rootDir);
 }
