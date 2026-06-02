@@ -1,6 +1,6 @@
 {
   "name": "octo-dev",
-  "version": "0.7.0",
+  "version": "0.7.1",
   "description": "Build orchestration, semantic versioning, and local infrastructure management for repository workspaces",
   "type": "module",
   "license": "MIT",
