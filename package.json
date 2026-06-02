@@ -1,7 +1,7 @@
 {
   "name": "octo-dev",
   "version": "0.5.5",
-  "description": "CLI for monorepo build orchestration, semantic versioning, and local infrastructure management",
+  "description": "Build orchestration, semantic versioning, and local infrastructure management for repository workspaces",
   "type": "module",
   "license": "MIT",
   "author": "congeant",
@@ -15,7 +15,7 @@
   },
   "keywords": [
     "cli",
-    "monorepo",
+    "workspace",
     "build",
     "orchestration",
     "docker",

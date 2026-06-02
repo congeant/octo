@@ -10,7 +10,7 @@ const program = new Command();
 
 program
   .name('octo')
-  .description('Monorepo build orchestration, versioning, and infrastructure CLI')
+  .description('Build orchestration, semantic versioning, and local infrastructure management for repository workspaces')
   .version('0.5.5');
 
 program
