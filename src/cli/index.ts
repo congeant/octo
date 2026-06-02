@@ -106,4 +106,12 @@ config
     await configGitCacheCommand(value);
   });
 
+config
+  .command('llm')
+  .description('Configure LLM provider (openai, gemini, groq, anthropic, custom)')
+  .action(async () => {
+    const { configLlmCommand } = await import('./config.command.js');
+    await configLlmCommand();
+  });
+
 program.parse();

@@ -46,7 +46,7 @@ export function createComposeSmartMerger(): ComposeSmartMerger {
       }
 
       // Try LLM-based merge
-      if (await isAvailable()) {
+      if (isAvailable()) {
         try {
           logger.info('Using local AI for smart compose merge...');
           const prompt = buildPrompt(composes);

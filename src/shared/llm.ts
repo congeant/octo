@@ -1,69 +1,70 @@
-import { pipeline, type TextGenerationPipeline } from '@huggingface/transformers';
 import { logger } from './logger.js';
+import { loadConfig } from './config.js';
 
-const MODEL_ID = 'onnx-community/Qwen2.5-0.5B-Instruct';
+interface ChatMessage {
+  role: 'system' | 'user' | 'assistant';
+  content: string;
+}
 
-let generator: TextGenerationPipeline | null = null;
-let initFailed = false;
-
-/**
- * Lazily initializes the text generation pipeline.
- * Downloads the ONNX model on first use (~500MB, cached locally).
- */
-async function getGenerator(): Promise<TextGenerationPipeline | null> {
-  if (initFailed) return null;
-  if (generator) return generator;
-
-  try {
-    logger.info('Loading local AI model (first run may take a while)...');
-    generator = await pipeline('text-generation', MODEL_ID, {
-      dtype: 'q4',
-    }) as TextGenerationPipeline;
-    return generator;
-  } catch (err) {
-    initFailed = true;
-    const msg = err instanceof Error ? err.message : String(err);
-    logger.info(`Local AI model unavailable: ${msg}. Using deterministic fallback.`);
-    return null;
-  }
+interface ChatResponse {
+  choices: Array<{ message: { content: string } }>;
 }
 
 /**
- * Generates text from a prompt using the local ONNX model.
- * Returns null if the model is unavailable or generation fails.
+ * Sends a prompt to the configured LLM provider via OpenAI-compatible API.
+ * Returns null if no LLM is configured or the request fails.
+ *
+ * @param prompt - The user prompt to send.
+ * @param maxTokens - Maximum tokens in the response.
+ * @returns The generated text, or null on failure.
  */
 export async function generate(prompt: string, maxTokens = 512): Promise<string | null> {
-  const gen = await getGenerator();
-  if (!gen) return null;
+  const config = loadConfig();
+  if (!config.llm?.apiKey || !config.llm?.baseUrl) return null;
+
+  const messages: ChatMessage[] = [{ role: 'user', content: prompt }];
 
   try {
-    const messages = [
-      { role: 'user', content: prompt },
-    ];
-    const result = await gen(messages, {
-      max_new_tokens: maxTokens,
-      do_sample: false,
+    const response = await fetch(`${config.llm.baseUrl}/chat/completions`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${config.llm.apiKey}`,
+      },
+      body: JSON.stringify({
+        model: config.llm.model,
+        messages,
+        max_tokens: maxTokens,
+        temperature: 0,
+      }),
     });
-    const output = result[0]?.generated_text;
-    if (Array.isArray(output)) {
-      const last = output[output.length - 1];
-      return typeof last === 'object' && 'content' in last ? String(last.content) : null;
+
+    if (!response.ok) {
+      logger.warn(`LLM request failed (${response.status}). Using deterministic fallback.`);
+      return null;
     }
-    return typeof output === 'string' ? output : null;
-  } catch {
+
+    const data = await response.json() as ChatResponse;
+    return data.choices?.[0]?.message?.content?.trim() ?? null;
+  } catch (err) {
+    const msg = err instanceof Error ? err.message : String(err);
+    logger.warn(`LLM unavailable: ${msg}. Using deterministic fallback.`);
     return null;
   }
 }
 
 /**
  * Generates structured JSON output from a prompt.
- * Returns null if parsing fails or model is unavailable.
+ * Returns null if parsing fails or LLM is unavailable.
+ *
+ * @param prompt - The prompt requesting JSON output.
+ * @param maxTokens - Maximum tokens in the response.
+ * @returns Parsed JSON object, or null on failure.
  */
 export async function generateJSON<T = unknown>(prompt: string, maxTokens = 1024): Promise<T | null> {
   const text = await generate(prompt, maxTokens);
   if (!text) return null;
 
-  // Extract JSON from the response (model may wrap in markdown code blocks)
   const jsonMatch = text.match(/\{[\s\S]*\}/);
   if (!jsonMatch) return null;
 
@@ -75,9 +76,11 @@ export async function generateJSON<T = unknown>(prompt: string, maxTokens = 1024
 }
 
 /**
- * Checks if the LLM is available (model loaded or loadable).
+ * Checks if an LLM provider is configured and reachable.
+ *
+ * @returns true if LLM config exists with apiKey and baseUrl.
  */
-export async function isAvailable(): Promise<boolean> {
-  const gen = await getGenerator();
-  return gen !== null;
+export function isAvailable(): boolean {
+  const config = loadConfig();
+  return !!(config.llm?.apiKey && config.llm?.baseUrl);
 }
