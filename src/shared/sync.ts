@@ -48,7 +48,10 @@ export async function ensureRepositories(manifest: OctoManifest, rootDir: string
 }
 
 /**
- * Extracts all entry names and paths from the manifest (services + packages).
+ * Extracts all entry names and optional path overrides from the manifest.
+ *
+ * @param manifest - The parsed octo.yaml manifest.
+ * @returns Array of entries with name and optional explicit path.
  */
 function collectEntries(manifest: OctoManifest): Array<{ name: string; path?: string }> {
   const results: Array<{ name: string; path?: string }> = [];
@@ -63,6 +66,13 @@ function collectEntries(manifest: OctoManifest): Array<{ name: string; path?: st
   return results;
 }
 
+/**
+ * Resolves the name and optional path from a manifest entry.
+ * String entries return name only. Object entries extract key + path config.
+ *
+ * @param entry - A service or package entry from octo.yaml.
+ * @returns Object with resolved name and optional path override.
+ */
 function resolveEntry(entry: ServiceEntry | PackageEntry): { name: string; path?: string } {
   if (typeof entry === 'string') return { name: entry };
   const key = Object.keys(entry)[0];
