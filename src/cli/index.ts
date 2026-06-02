@@ -11,7 +11,7 @@ const program = new Command();
 program
   .name('octo')
   .description('Build orchestration, semantic versioning, and local infrastructure management for repository workspaces')
-  .version('0.5.5');
+  .version('0.6.0');
 
 program
   .command('init')
