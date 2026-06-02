@@ -5,7 +5,7 @@ import { buildGraphFromManifest } from '../graph/build-graph.js';
 import { OctoError } from '../shared/errors.js';
 
 /**
- * `octo graph` — displays the dependency graph on stdout as an indented adjacency list.
+ * `octo graph` — displays the dependency graph as a visual tree in the terminal.
  */
 export async function graphCommand(): Promise<void> {
   const cwd = process.cwd();
@@ -19,22 +19,38 @@ export async function graphCommand(): Promise<void> {
   }
 
   const result = parseManifest(content, manifestPath);
-  if (!result.ok) {
-    throw result.error;
-  }
+  if (!result.ok) throw result.error;
 
   const graph = buildGraphFromManifest(result.value, cwd);
   const sortResult = graph.topologicalSort();
 
-  if (!sortResult.ok) {
-    throw sortResult.error;
-  }
+  if (!sortResult.ok) throw sortResult.error;
 
-  // Print each node followed by its dependencies indented with 2 spaces
-  for (const name of sortResult.value) {
-    process.stdout.write(`${name}\n`);
-    for (const dep of graph.getDependencies(name)) {
-      process.stdout.write(`  ${dep}\n`);
+  const allNames = sortResult.value;
+  const totalNodes = allNames.length;
+  const totalEdges = allNames.reduce((sum, n) => sum + graph.getDependencies(n).length, 0);
+
+  console.log(`\n  Dependency Graph (${totalNodes} nodes, ${totalEdges} edges)\n`);
+
+  for (const name of allNames) {
+    const deps = graph.getDependencies(name);
+    const dependents = graph.getDependents(name);
+    const node = graph.getNode(name);
+    const type = node?.type === 'service' ? '●' : '○';
+
+    if (deps.length === 0 && dependents.length === 0) {
+      console.log(`  ${type} ${name}`);
+      continue;
+    }
+
+    console.log(`  ${type} ${name}`);
+
+    for (let i = 0; i < deps.length; i++) {
+      const isLast = i === deps.length - 1;
+      const connector = isLast ? '└──' : '├──';
+      console.log(`    ${connector} → ${deps[i]}`);
     }
   }
+
+  console.log(`\n  ● service  ○ package  → depends on\n`);
 }
