@@ -95,7 +95,7 @@ export class VersionPropagator {
           previousVersion: currentRange,
           newVersion,
           skipped: true,
-          reason: `Range ${currentRange} incompatível com ${newVersion}`,
+          reason: `Range ${currentRange} incompatible with ${newVersion}`,
         });
         return false;
       }

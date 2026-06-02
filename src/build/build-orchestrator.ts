@@ -4,13 +4,12 @@ import { onShutdown } from '../shared/shutdown.js';
 import { runHooks } from '../hooks/hook-runner.js';
 import type { HookContext } from '../hooks/hook-runner.js';
 import type { DependencyGraph } from '../graph/dependency-graph.js';
-import type { BuildEngine, BuildEngineRegistry, BuildTarget } from './ports/build-engine.port.js';
+import type { BuildEngineRegistry, BuildTarget } from './ports/build-engine.port.js';
 import type { OctoManifest } from '../manifest/manifest-schema.js';
 import {
   createBuildScheduler,
   type BuildResult,
   type BuildProgress,
-  type BuildStatus,
 } from './build-scheduler.js';
 
 export interface BuildOptions {

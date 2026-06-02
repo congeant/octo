@@ -161,11 +161,6 @@ export function createBuildScheduler(): BuildScheduler {
         clearInterval(progressInterval);
       }
 
-      const success = [...results.values()].every(
-        (r) => r.status === 'success' || r.status === 'cancelled',
-      ) && [...results.values()].some((r) => r.status === 'success');
-
-      // Overall success: no failures
       const hasFailure = [...results.values()].some((r) => r.status === 'failure');
 
       return { success: !hasFailure, results };

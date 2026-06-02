@@ -133,7 +133,7 @@ export function displayDiscoveredProjects(rootDir: string): DiscoveredManifest[]
   const mode = resolveMode(rootDir);
 
   if (mode === 'aggregated') {
-    logger.info(`Modo agregado: ${manifests.length} projetos descobertos`);
+    logger.info(`Aggregated mode: ${manifests.length} projects discovered`);
     for (const m of manifests) {
       logger.info(`  → ${m.name} (${relative(rootDir, m.path)})`);
     }

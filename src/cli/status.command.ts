@@ -34,7 +34,7 @@ export async function statusCommand(): Promise<void> {
   }
 
   // Print table header
-  const header = `${'NOME'.padEnd(30)} ${'IMAGEM'.padEnd(35)} ${'ESTADO'.padEnd(12)} PORTA`;
+  const header = `${'NAME'.padEnd(30)} ${'IMAGE'.padEnd(35)} ${'STATE'.padEnd(12)} PORT`;
   console.log(header);
   console.log('-'.repeat(header.length));
 
