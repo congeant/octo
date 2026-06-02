@@ -5,7 +5,7 @@ import { ask, askSecret } from '../shared/prompt.js';
 
 const PROVIDERS: Record<string, { baseUrl: string; defaultModel: string }> = {
   openai: { baseUrl: 'https://openai.com/v1', defaultModel: 'gpt-4o-mini' },
-  gemini: { baseUrl: 'https://generativelanguage.googleapis.com/v1beta/openai', defaultModel: 'gemini-2.0-flash' },
+  gemini: { baseUrl: 'https://generativelanguage.googleapis.com/v1beta/openai', defaultModel: 'gemini-2.5-flash' },
   groq: { baseUrl: 'https://api.groq.com/openai/v1', defaultModel: 'llama-3.3-70b-versatile' },
   anthropic: { baseUrl: 'https://api.anthropic.com/v1', defaultModel: 'claude-sonnet-4-20250514' },
   custom: { baseUrl: '', defaultModel: '' },
