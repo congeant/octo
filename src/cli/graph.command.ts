@@ -2,7 +2,6 @@ import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { parseManifest } from '../manifest/manifest-parser.js';
 import { buildGraphFromManifest } from '../graph/build-graph.js';
-import { ensureRepositories } from '../shared/sync.js';
 import { OctoError } from '../shared/errors.js';
 
 /**
@@ -24,7 +23,6 @@ export async function graphCommand(): Promise<void> {
     throw result.error;
   }
 
-  await ensureRepositories(result.value, cwd);
   const graph = buildGraphFromManifest(result.value, cwd);
   const sortResult = graph.topologicalSort();
 

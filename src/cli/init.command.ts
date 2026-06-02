@@ -2,6 +2,7 @@ import { readdir, readFile, access, writeFile } from 'node:fs/promises';
 import { join, relative } from 'node:path';
 import { logger } from '../shared/logger.js';
 import { printManifest } from '../manifest/manifest-printer.js';
+import { ensureRepositories } from '../shared/sync.js';
 import type { OctoManifest } from '../manifest/manifest-schema.js';
 
 const EXCLUDED_DIRS = new Set(['node_modules', 'dist']);
@@ -104,4 +105,7 @@ export async function initCommand(opts: { standalone?: boolean }): Promise<void>
   await writeFile(outputPath, yaml, 'utf-8');
 
   logger.info(`octo.yaml generated with ${services.length} service(s)${packages.length > 0 ? ` and ${packages.length} package(s)` : ''}.`);
+
+  // Sync: clone any missing remote repos declared in the manifest
+  await ensureRepositories(manifest, rootDir);
 }

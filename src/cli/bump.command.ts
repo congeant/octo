@@ -6,7 +6,6 @@ import { runHooks } from '../hooks/hook-runner.js';
 import { VersionBumper, type BumpType } from '../version/version-bumper.js';
 import { VersionPropagator } from '../version/version-propagator.js';
 import { ChangelogGenerator } from '../version/changelog-generator.js';
-import { ensureRepositories } from '../shared/sync.js';
 import { run } from '../shared/process-runner.js';
 import { OctoError } from '../shared/errors.js';
 import { logger } from '../shared/logger.js';

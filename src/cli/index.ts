@@ -86,6 +86,14 @@ program
     await addCommand(repoUrl, opts);
   });
 
+program
+  .command('sync')
+  .description('Clone all missing repositories declared in octo.yaml')
+  .action(async () => {
+    const { syncCommand } = await import('./sync.command.js');
+    await syncCommand();
+  });
+
 const config = program
   .command('config')
   .description('Configure octo and git settings');
