@@ -86,13 +86,16 @@ program
     await addCommand(repoUrl, opts);
   });
 
-program
+const config = program
   .command('config')
-  .description('Configure octo and git settings')
-  .option('--credential-cache <value>', 'Set git credential.helper (e.g. "cache --timeout=3600", "store")')
-  .action(async (opts) => {
-    const { configCommand } = await import('./config.command.js');
-    await configCommand(opts);
+  .description('Configure octo and git settings');
+
+config
+  .command('git-cache [value]')
+  .description('Set git credential.helper (default: "cache")')
+  .action(async (value) => {
+    const { configGitCacheCommand } = await import('./config.command.js');
+    await configGitCacheCommand(value);
   });
 
 program.parse();
