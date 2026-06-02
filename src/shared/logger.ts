@@ -5,7 +5,7 @@ export const logger = pino({
     target: 'pino-pretty',
     options: {
       colorize: true,
-      ignore: 'pid,hostname,time',
+      ignore: 'pid,hostname,time,level',
       messageFormat: '{msg}',
     },
   },
