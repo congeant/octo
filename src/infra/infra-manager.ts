@@ -107,8 +107,8 @@ async function waitForHealthcheck(containerName: string): Promise<boolean> {
     ]);
     if (result.exitCode !== 0) return true;
     const status = result.stdout.trim();
+    if (status.includes('unhealthy')) return false;
     if (status === 'healthy' || status === 'none') return true;
-    if (status === 'unhealthy') return false;
     await new Promise((r) => setTimeout(r, HEALTHCHECK_POLL_MS));
   }
   return false;
@@ -193,7 +193,7 @@ export function createInfraManager(servicePaths: string[], rootDir: string): Inf
      * @returns Result indicating success/failure with a descriptive message.
      */
     async up(services?: string[]): Promise<InfraResult> {
-      const paths = services && services.length > 0
+      const paths = services?.length
         ? servicePaths.filter((p) => services.some((s) => p.endsWith(s)))
         : servicePaths;
 
@@ -275,8 +275,8 @@ export function createInfraManager(servicePaths: string[], rootDir: string): Inf
         try {
           const entry = JSON.parse(line);
           const state: ContainerState =
-            entry.Health === 'unhealthy' ? 'unhealthy' :
-            entry.State === 'running' ? 'running' : 'stopped';
+            entry.State !== 'running' ? 'stopped' :
+            entry.Health === 'unhealthy' ? 'unhealthy' : 'running';
           containers.push({
             name: entry.Name ?? entry.Service ?? '',
             image: entry.Image ?? '',

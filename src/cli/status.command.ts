@@ -29,7 +29,7 @@ export async function statusCommand(): Promise<void> {
   const containers = await manager.status();
 
   if (containers.length === 0) {
-    logger.info('Nenhum container em execução.');
+    logger.info('No containers running.');
     return;
   }
 
